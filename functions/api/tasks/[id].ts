@@ -26,7 +26,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
   const body = await ctx.request.json<Record<string, unknown>>();
 
-  const allowed = ['title', 'description', 'status', 'priority', 'due_date', 'draft_reply'];
+  const allowed = ['title', 'description', 'status', 'priority', 'due_date', 'draft_reply', 'company_id', 'company_name', 'contact_id', 'contact_name'];
   const updates: string[] = [];
   const values: unknown[] = [];
 

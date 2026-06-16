@@ -62,6 +62,8 @@ export default function TaskList({ tasks, selected, onSelect, onStatusChange, on
                   style={{ color: PRIORITY_COLORS[task.priority] }}
                   title={task.priority}
                 >●</span>
+                {task.company_name && <span className="tag">{task.company_name}</span>}
+                {task.contact_name && <span className="muted">{task.contact_name}</span>}
                 {task.source === 'email' && <span className="tag">email</span>}
                 {task.due_date && <span className="muted">{formatDate(task.due_date)}</span>}
                 <span className="muted">{formatDate(task.created_at)}</span>

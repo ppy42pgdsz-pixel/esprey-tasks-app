@@ -14,7 +14,26 @@ export interface Task {
   original_subject: string | null;
   original_body: string | null;
   draft_reply: string | null;
+  company_id: string | null;
+  company_name: string | null;
+  contact_id: string | null;
+  contact_name: string | null;
   created_at: number;
   updated_at: number;
   due_date: number | null;
+}
+
+export interface Company {
+  id: string;
+  name: string;
+  created_at: number;
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  email: string | null;
+  company_id: string | null;
+  is_favourite: number; // 1 = true, 0 = false
+  created_at: number;
 }

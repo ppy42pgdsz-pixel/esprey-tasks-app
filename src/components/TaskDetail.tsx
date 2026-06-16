@@ -1,20 +1,29 @@
 import { useState } from 'react';
-import type { Task, TaskStatus, TaskPriority } from '../types';
+import type { Task, TaskStatus, TaskPriority, Company, Contact } from '../types';
 import { api } from '../api';
+import PeoplePicker from './PeoplePicker';
 
 interface Props {
   task: Task;
+  companies: Company[];
+  contacts: Contact[];
   onClose: () => void;
   onUpdate: (task: Task) => void;
   onDelete: (task: Task) => void;
+  onNewCompany: (name: string) => Promise<Company>;
+  onNewContact: (data: { name: string; is_favourite?: boolean }) => Promise<Contact>;
 }
 
-export default function TaskDetail({ task, onClose, onUpdate, onDelete }: Props) {
+export default function TaskDetail({ task, companies, contacts, onClose, onUpdate, onDelete, onNewCompany, onNewContact }: Props) {
   const [generatingReply, setGeneratingReply] = useState(false);
   const [editingReply, setEditingReply] = useState(false);
   const [replyText, setReplyText] = useState(task.draft_reply ?? '');
   const [editingDesc, setEditingDesc] = useState(false);
   const [descText, setDescText] = useState(task.description);
+  const [addingCompany, setAddingCompany] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
+
+  const selectedContact = contacts.find((c) => c.id === task.contact_id) ?? null;
 
   const handleGenerateReply = async () => {
     setGeneratingReply(true);
@@ -49,6 +58,31 @@ export default function TaskDetail({ task, onClose, onUpdate, onDelete }: Props)
     onUpdate(updated);
   };
 
+  const handleCompanyChange = async (companyId: string) => {
+    const company = companies.find((c) => c.id === companyId);
+    const updated = await api.updateTask(task.id, {
+      company_id: companyId || null,
+      company_name: company?.name ?? null,
+    } as Parameters<typeof api.updateTask>[1]);
+    onUpdate(updated);
+  };
+
+  const handleContactSelect = async (contact: Contact | null) => {
+    const updated = await api.updateTask(task.id, {
+      contact_id: contact?.id ?? null,
+      contact_name: contact?.name ?? null,
+    } as Parameters<typeof api.updateTask>[1]);
+    onUpdate(updated);
+  };
+
+  const handleAddCompany = async () => {
+    if (!newCompanyName.trim()) return;
+    const company = await onNewCompany(newCompanyName.trim());
+    await handleCompanyChange(company.id);
+    setNewCompanyName('');
+    setAddingCompany(false);
+  };
+
   const copyToClipboard = (text: string) => navigator.clipboard.writeText(text);
 
   return (
@@ -77,6 +111,48 @@ export default function TaskDetail({ task, onClose, onUpdate, onDelete }: Props)
           <option value="normal">Normal priority</option>
           <option value="high">High priority</option>
         </select>
+      </div>
+
+      {/* Company */}
+      <div className="detail-section">
+        <div className="section-label">Company</div>
+        {addingCompany ? (
+          <div className="inline-add">
+            <input
+              className="text-input"
+              placeholder="Company name"
+              value={newCompanyName}
+              onChange={(e) => setNewCompanyName(e.target.value)}
+              autoFocus
+            />
+            <button className="btn-primary sm" onClick={handleAddCompany}>Add</button>
+            <button className="btn-secondary sm" onClick={() => setAddingCompany(false)}>Cancel</button>
+          </div>
+        ) : (
+          <div className="company-select-row">
+            <select
+              className="select-input"
+              value={task.company_id ?? ''}
+              onChange={(e) => handleCompanyChange(e.target.value)}
+            >
+              <option value="">No company</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button className="link-btn" onClick={() => setAddingCompany(true)}>+ new</button>
+          </div>
+        )}
+      </div>
+
+      {/* Contact */}
+      <div className="detail-section">
+        <PeoplePicker
+          contacts={contacts}
+          selected={selectedContact}
+          onSelect={handleContactSelect}
+          onNewContact={onNewContact}
+        />
       </div>
 
       {task.source === 'email' && task.from_email && (
@@ -129,7 +205,7 @@ export default function TaskDetail({ task, onClose, onUpdate, onDelete }: Props)
         <div className="section-label-row">
           <span className="section-label">Draft reply</span>
           <div className="section-actions">
-            {(task.draft_reply || replyText) && (
+            {replyText && (
               <>
                 <button className="link-btn" onClick={() => copyToClipboard(replyText)}>copy</button>
                 <button className="link-btn" onClick={() => setEditingReply(!editingReply)}>
@@ -137,11 +213,7 @@ export default function TaskDetail({ task, onClose, onUpdate, onDelete }: Props)
                 </button>
               </>
             )}
-            <button
-              className="link-btn"
-              onClick={handleGenerateReply}
-              disabled={generatingReply}
-            >
+            <button className="link-btn" onClick={handleGenerateReply} disabled={generatingReply}>
               {generatingReply ? 'generating…' : replyText ? 'regenerate' : 'generate'}
             </button>
           </div>
@@ -149,32 +221,20 @@ export default function TaskDetail({ task, onClose, onUpdate, onDelete }: Props)
 
         {editingReply ? (
           <div>
-            <textarea
-              className="textarea"
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              rows={8}
-            />
+            <textarea className="textarea" value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={8} />
             <button className="btn-primary sm" onClick={handleSaveReply}>Save</button>
           </div>
         ) : replyText ? (
           <div className="draft-reply">{replyText}</div>
         ) : (
           <div className="muted section-value">
-            {task.source === 'email'
-              ? 'Click generate to draft a reply with Claude.'
-              : 'Add email context to generate a reply.'}
+            {task.source === 'email' ? 'Click generate to draft a reply with Claude.' : 'Add email context to generate a reply.'}
           </div>
         )}
       </div>
 
       <div className="detail-footer">
-        <button
-          className="btn-danger"
-          onClick={() => {
-            if (confirm('Delete this task?')) onDelete(task);
-          }}
-        >
+        <button className="btn-danger" onClick={() => { if (confirm('Delete this task?')) onDelete(task); }}>
           Delete task
         </button>
       </div>

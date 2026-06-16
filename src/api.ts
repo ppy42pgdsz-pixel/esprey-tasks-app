@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TaskPriority } from './types';
+import type { Task, TaskStatus, TaskPriority, Company, Contact } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -13,8 +13,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  listTasks: (status?: TaskStatus) =>
-    request<Task[]>(`/api/tasks${status ? `?status=${status}` : ''}`),
+  listTasks: (status?: TaskStatus, company_id?: string, contact_id?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (company_id) params.set('company_id', company_id);
+    if (contact_id) params.set('contact_id', contact_id);
+    const qs = params.toString();
+    return request<Task[]>(`/api/tasks${qs ? `?${qs}` : ''}`);
+  },
 
   getTask: (id: string) => request<Task>(`/api/tasks/${id}`),
 
@@ -29,4 +35,12 @@ export const api = {
 
   generateDraftReply: (id: string) =>
     request<{ draft_reply: string }>(`/api/tasks/${id}/draft-reply`, { method: 'POST' }),
+
+  listCompanies: () => request<Company[]>('/api/companies'),
+  createCompany: (name: string) =>
+    request<Company>('/api/companies', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  listContacts: () => request<Contact[]>('/api/contacts'),
+  createContact: (data: { name: string; email?: string; company_id?: string; is_favourite?: boolean }) =>
+    request<Contact>('/api/contacts', { method: 'POST', body: JSON.stringify(data) }),
 };
