@@ -5,6 +5,8 @@
  * 1. Parses the raw MIME message with postal-mime
  * 2. Sends the email to Claude to extract a structured task
  * 3. Inserts the task into the D1 database
+ *
+ * Auto-deploy: connected to GitHub via Cloudflare Workers Builds (root: email-worker).
  */
 
 import PostalMime from 'postal-mime';
