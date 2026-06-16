@@ -9,8 +9,4 @@ ADMIN_NAME = "Carl"
 [[d1_databases]]
 binding = "DB"
 database_name = "esprey-tasks-app"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
-
-# After creating your D1 database with:
-# wrangler d1 create esprey-tasks-app
-# Replace the database_id above with the output ID
+database_id = "04508e88-feb9-435d-9740-2affcf5206df"

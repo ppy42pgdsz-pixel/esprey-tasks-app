@@ -10,7 +10,4 @@ APP_DOMAIN = "tasks.esprey.net"
 [[d1_databases]]
 binding = "DB"
 database_name = "esprey-tasks-app"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
-
-# Same D1 database ID as in the main wrangler.toml
-# This worker writes tasks into the same DB that the app reads from
+database_id = "04508e88-feb9-435d-9740-2affcf5206df"
