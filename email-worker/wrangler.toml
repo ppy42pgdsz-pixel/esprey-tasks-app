@@ -1,0 +1,16 @@
+name = "esprey-tasks-email"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+[vars]
+ADMIN_EMAIL = "cesprey@gmail.com"
+ADMIN_NAME = "Carl"
+APP_DOMAIN = "tasks.esprey.net"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "esprey-tasks-app"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# Same D1 database ID as in the main wrangler.toml
+# This worker writes tasks into the same DB that the app reads from
