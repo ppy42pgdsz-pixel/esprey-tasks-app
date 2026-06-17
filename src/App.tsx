@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from './api';
-import type { Task, TaskStatus, TaskPriority, Company, Contact } from './types';
+import type { Task, TaskStatus, TaskPriority, Company, Contact, User, UserRole } from './types';
 import TaskList from './components/TaskList';
 import TaskDetail from './components/TaskDetail';
 import AddTaskForm from './components/AddTaskForm';
@@ -26,12 +26,30 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [me, setMe] = useState<{ email: string; name: string; role: UserRole } | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
 
-  // Load companies and contacts once
+  // Load reference data once
   useEffect(() => {
     api.listCompanies().then(setCompanies).catch(console.error);
     api.listContacts().then(setContacts).catch(console.error);
+    api.getMe().then(setMe).catch(console.error);
+    api.listUsers().then(setUsers).catch(console.error);
   }, []);
+
+  const sortUsers = (list: User[]) => [...list].sort((a, b) => a.name.localeCompare(b.name));
+  const handleCreateUser = async (data: { name: string; email: string; role: UserRole }) => {
+    const u = await api.createUser(data);
+    setUsers((prev) => sortUsers([...prev.filter((x) => x.email !== u.email), u]));
+  };
+  const handleUpdateUser = async (email: string, data: { name?: string; role?: UserRole }) => {
+    const u = await api.updateUser(email, data);
+    setUsers((prev) => prev.map((x) => (x.email === email ? u : x)));
+  };
+  const handleDeleteUser = async (email: string) => {
+    await api.deleteUser(email);
+    setUsers((prev) => prev.filter((x) => x.email !== email));
+  };
 
   // Load by company/contact only; status is filtered client-side so the stat
   // cards always show accurate counts for every status.
@@ -219,7 +237,12 @@ export default function App() {
         <SettingsPanel
           companies={companies}
           contacts={contacts}
+          me={me}
+          users={users}
           onClose={() => setShowSettings(false)}
+          onCreateUser={handleCreateUser}
+          onUpdateUser={handleUpdateUser}
+          onDeleteUser={handleDeleteUser}
           onCreateCompany={handleNewCompany}
           onRenameCompany={handleRenameCompany}
           onDeleteCompany={handleDeleteCompany}

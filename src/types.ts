@@ -26,6 +26,15 @@ export interface Task {
   subtask_done?: number;
 }
 
+export type UserRole = 'admin' | 'member';
+
+export interface User {
+  email: string;
+  name: string;
+  role: UserRole;
+  created_at: number;
+}
+
 export interface Subtask {
   id: string;
   task_id: string;

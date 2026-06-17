@@ -327,6 +327,7 @@ body {
 .section-actions { display: flex; gap: 8px; }
 .section-value { font-size: 14px; color: #292524; }
 .mt { margin-top: 10px; }
+.mb { margin-bottom: 16px; margin-top: -8px; }
 
 .original-body {
   background: #fafaf9;

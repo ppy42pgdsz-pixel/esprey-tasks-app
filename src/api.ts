@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment, Subtask } from './types';
+import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment, Subtask, User, UserRole } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -63,4 +63,14 @@ export const api = {
     request<Subtask>(`/api/subtasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteSubtask: (id: string) =>
     request<{ ok: boolean }>(`/api/subtasks/${id}`, { method: 'DELETE' }),
+
+  // ─── Team / identity ───
+  getMe: () => request<{ email: string; name: string; role: UserRole }>('/api/me'),
+  listUsers: () => request<User[]>('/api/users'),
+  createUser: (data: { name: string; email: string; role?: UserRole }) =>
+    request<User>('/api/users', { method: 'POST', body: JSON.stringify(data) }),
+  updateUser: (email: string, data: { name?: string; role?: UserRole }) =>
+    request<User>(`/api/users/${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteUser: (email: string) =>
+    request<{ ok: boolean }>(`/api/users/${encodeURIComponent(email)}`, { method: 'DELETE' }),
 };

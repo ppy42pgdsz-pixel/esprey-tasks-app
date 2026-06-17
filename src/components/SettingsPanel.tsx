@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import type { Company, Contact } from '../types';
+import type { Company, Contact, User, UserRole } from '../types';
 
 interface Props {
   companies: Company[];
   contacts: Contact[];
+  me: { email: string; name: string; role: UserRole } | null;
+  users: User[];
   onClose: () => void;
   onCreateCompany: (name: string) => Promise<Company>;
   onRenameCompany: (id: string, name: string) => Promise<void>;
@@ -11,6 +13,9 @@ interface Props {
   onCreateContact: (data: { name: string; email?: string; company_id?: string; is_favourite?: boolean }) => Promise<Contact>;
   onUpdateContact: (id: string, data: { name?: string; email?: string | null; company_id?: string | null; is_favourite?: boolean }) => Promise<void>;
   onDeleteContact: (id: string) => Promise<void>;
+  onCreateUser: (data: { name: string; email: string; role: UserRole }) => Promise<void>;
+  onUpdateUser: (email: string, data: { name?: string; role?: UserRole }) => Promise<void>;
+  onDeleteUser: (email: string) => Promise<void>;
 }
 
 interface ContactDraft {
@@ -22,6 +27,8 @@ interface ContactDraft {
 export default function SettingsPanel({
   companies,
   contacts,
+  me,
+  users,
   onClose,
   onCreateCompany,
   onRenameCompany,
@@ -29,7 +36,14 @@ export default function SettingsPanel({
   onCreateContact,
   onUpdateContact,
   onDeleteContact,
+  onCreateUser,
+  onUpdateUser,
+  onDeleteUser,
 }: Props) {
+  const isAdmin = me?.role === 'admin';
+
+  // ─── Team ───
+  const [newUser, setNewUser] = useState<{ name: string; email: string; role: UserRole }>({ name: '', email: '', role: 'member' });
   // ─── Companies ───
   const [newCompany, setNewCompany] = useState('');
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
@@ -121,6 +135,25 @@ export default function SettingsPanel({
       await onDeleteContact(c.id);
     });
 
+  // ─── Team ───
+  const addUser = () =>
+    run(async () => {
+      const name = newUser.name.trim();
+      const email = newUser.email.trim();
+      if (!name || !email) return;
+      await onCreateUser({ name, email, role: newUser.role });
+      setNewUser({ name: '', email: '', role: 'member' });
+    });
+
+  const toggleRole = (u: User) =>
+    run(() => onUpdateUser(u.email, { role: u.role === 'admin' ? 'member' : 'admin' }));
+
+  const removeUser = (u: User) =>
+    run(async () => {
+      if (!confirm(`Remove ${u.name} (${u.email}) from the team?`)) return;
+      await onDeleteUser(u.email);
+    });
+
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
@@ -128,6 +161,59 @@ export default function SettingsPanel({
           <h2 className="settings-title">Settings</h2>
           <button className="close-btn" onClick={onClose} aria-label="Close">×</button>
         </div>
+        {me && <p className="muted mb">Signed in as {me.name} ({me.role})</p>}
+
+        {/* ─── Team (admin only) ─── */}
+        {isAdmin && (
+          <section className="settings-section">
+            <h3 className="settings-section-title">Team (employees)</h3>
+            <div className="settings-add-contact">
+              <input
+                className="text-input"
+                placeholder="Name"
+                value={newUser.name}
+                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+              />
+              <input
+                className="text-input"
+                placeholder="Email"
+                value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+              />
+              <select
+                className="select-input"
+                value={newUser.role}
+                onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+              <button className="btn-primary sm" onClick={addUser} disabled={busy || !newUser.name.trim() || !newUser.email.trim()}>Add</button>
+            </div>
+
+            {users.length === 0 ? (
+              <p className="muted mt">No employees yet.</p>
+            ) : (
+              <ul className="settings-list">
+                {users.map((u) => (
+                  <li key={u.email} className="settings-row">
+                    <div className="settings-row-name">
+                      <span>{u.name}</span>
+                      <span className="settings-row-sub">{u.email} · {u.role}</span>
+                    </div>
+                    <div className="settings-row-actions">
+                      <button className="link-btn" onClick={() => toggleRole(u)} disabled={busy}>
+                        {u.role === 'admin' ? 'Make member' : 'Make admin'}
+                      </button>
+                      <button className="link-btn danger" onClick={() => removeUser(u)} disabled={busy}>Remove</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="muted mt">Adding someone here lists them for sharing. Enabling their actual login (Cloudflare Access) is the next step.</p>
+          </section>
+        )}
 
         {/* ─── Companies ─── */}
         <section className="settings-section">
