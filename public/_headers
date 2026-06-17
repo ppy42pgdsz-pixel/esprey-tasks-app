@@ -1,0 +1,7 @@
+# Always revalidate the app shell so a new deploy is picked up immediately,
+# while letting the content-hashed assets cache forever.
+/*
+  Cache-Control: no-cache, must-revalidate
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
