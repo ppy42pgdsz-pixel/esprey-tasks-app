@@ -1,6 +1,6 @@
 /**
  * PATCH  /api/companies/:id  — rename a company (keeps denormalized task names in sync)
- * DELETE /api/companies/:id  — delete a company; unassigns it from tasks & contacts but keeps the tasks
+ * DELETE /api/companies/:id  — delete a company; fully unassigns it from tasks (clears id AND name) and from contacts, but keeps the tasks
  */
 
 interface Env { DB: D1Database }
@@ -33,9 +33,9 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
 export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
 
-  // Unassign from tasks (keep company_name as plain text) and from contacts, then delete the company.
+  // Fully unassign from tasks (clear both id and name) and from contacts, then delete the company.
   await ctx.env.DB.batch([
-    ctx.env.DB.prepare('UPDATE tasks SET company_id = NULL WHERE company_id = ?').bind(id),
+    ctx.env.DB.prepare('UPDATE tasks SET company_id = NULL, company_name = NULL WHERE company_id = ?').bind(id),
     ctx.env.DB.prepare('UPDATE contacts SET company_id = NULL WHERE company_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM companies WHERE id = ?').bind(id),
   ]);

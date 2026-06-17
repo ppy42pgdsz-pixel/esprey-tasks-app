@@ -78,7 +78,7 @@ export default function SettingsPanel({
 
   const removeCompany = (c: Company) =>
     run(async () => {
-      if (!confirm(`Delete "${c.name}"? Tasks assigned to it will keep the name but lose the link.`)) return;
+      if (!confirm(`Delete "${c.name}"? Tasks assigned to it will be unassigned (the company will be cleared from them). The tasks themselves are kept.`)) return;
       await onDeleteCompany(c.id);
     });
 
@@ -117,7 +117,7 @@ export default function SettingsPanel({
 
   const removeContact = (c: Contact) =>
     run(async () => {
-      if (!confirm(`Delete "${c.name}"? Tasks assigned to them will keep the name but lose the link.`)) return;
+      if (!confirm(`Delete "${c.name}"? Tasks assigned to them will be unassigned (the contact will be cleared from them). The tasks themselves are kept.`)) return;
       await onDeleteContact(c.id);
     });
 

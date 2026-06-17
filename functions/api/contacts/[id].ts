@@ -1,6 +1,6 @@
 /**
  * PATCH  /api/contacts/:id  — edit a contact (name, email, company, favourite)
- * DELETE /api/contacts/:id  — delete a contact; unassigns it from tasks but keeps the tasks
+ * DELETE /api/contacts/:id  — delete a contact; fully unassigns it from tasks (clears id AND name) but keeps the tasks
  */
 
 interface Env { DB: D1Database }
@@ -67,9 +67,9 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
 export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
 
-  // Unassign from tasks (keep contact_name as plain text), then delete the contact.
+  // Fully unassign from tasks (clear both id and name), then delete the contact.
   await ctx.env.DB.batch([
-    ctx.env.DB.prepare('UPDATE tasks SET contact_id = NULL WHERE contact_id = ?').bind(id),
+    ctx.env.DB.prepare('UPDATE tasks SET contact_id = NULL, contact_name = NULL WHERE contact_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM contacts WHERE id = ?').bind(id),
   ]);
 
