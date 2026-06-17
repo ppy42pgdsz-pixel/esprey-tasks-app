@@ -63,16 +63,27 @@ body {
 /* ─── Main ─── */
 .main { flex: 1; padding: 24px 32px; max-width: 1400px; margin: 0 auto; width: 100%; }
 
-/* ─── Stat cards ─── */
-.stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+/* ─── Stat cards (also act as the status filter) ─── */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
 .stat-card {
   background: #ffffff;
   border: 1px solid #e7e5e4;
   border-radius: 12px;
   padding: 16px 20px;
+  text-align: left;
+  font-family: inherit;
 }
+.stat-card.clickable { cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+.stat-card.clickable:hover { border-color: #d6d3d1; }
+.stat-card.active { border-color: #4f46e5; box-shadow: 0 0 0 1px #4f46e5; }
 .stat-number { font-size: 28px; font-weight: 700; color: #1c1917; line-height: 1.1; }
 .stat-label { font-size: 13px; color: #78716c; margin-top: 4px; }
+
+/* ─── List controls row (filters + refresh, above the table) ─── */
+.list-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.list-controls .select-input { width: auto; font-size: 13px; padding: 6px 10px; }
+.list-controls .spacer { margin-left: auto; }
+@media (max-width: 700px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
 
 /* ─── Task Table ─── */
 .task-table {
@@ -471,7 +482,6 @@ body {
 
 /* ─── Responsive ─── */
 @media (max-width: 700px) {
-  .stats-row { grid-template-columns: 1fr; }
   .main { padding: 16px; }
   .header { padding: 12px 16px 0; }
 }

@@ -34,11 +34,13 @@ export default function App() {
     api.listContacts().then(setContacts).catch(console.error);
   }, []);
 
+  // Load by company/contact only; status is filtered client-side so the stat
+  // cards always show accurate counts for every status.
   const loadTasks = useCallback(async () => {
     try {
       setError(null);
       const data = await api.listTasks(
-        filterStatus === 'all' ? undefined : filterStatus,
+        undefined,
         filterCompany || undefined,
         filterContact || undefined,
       );
@@ -48,7 +50,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, filterCompany, filterContact]);
+  }, [filterCompany, filterContact]);
 
   useEffect(() => {
     setLoading(true);
@@ -155,9 +157,11 @@ export default function App() {
       return next;
     });
   };
-  const allSelected = tasks.length > 0 && tasks.every((t) => selectedIds.has(t.id));
+  const visibleTasks = filterStatus === 'all' ? tasks : tasks.filter((t) => t.status === filterStatus);
+
+  const allSelected = visibleTasks.length > 0 && visibleTasks.every((t) => selectedIds.has(t.id));
   const toggleSelectAll = () => {
-    setSelectedIds(allSelected ? new Set() : new Set(tasks.map((t) => t.id)));
+    setSelectedIds(allSelected ? new Set() : new Set(visibleTasks.map((t) => t.id)));
   };
 
   const applyBulk = async (fn: (id: string) => Promise<unknown>) => {
@@ -199,9 +203,6 @@ export default function App() {
         <div className="header-content">
           <h1 className="logo">Tasks</h1>
           <div className="header-actions">
-            <button className="btn-secondary" onClick={handleRefresh} disabled={refreshing} title="Reload tasks">
-              {refreshing ? 'Refreshing…' : '↻ Refresh'}
-            </button>
             <button className="btn-secondary" onClick={selectMode ? exitSelectMode : enterSelectMode}>
               {selectMode ? 'Done' : 'Select'}
             </button>
@@ -211,62 +212,6 @@ export default function App() {
             <button className="btn-primary" onClick={() => setShowAddForm(true)}>
               + Add Task
             </button>
-          </div>
-        </div>
-
-        <div className="filter-bar">
-          <nav className="filter-nav">
-            {(['all', 'todo', 'in_progress', 'done'] as FilterStatus[]).map((s) => (
-              <button
-                key={s}
-                className={`filter-btn ${filterStatus === s ? 'active' : ''}`}
-                onClick={() => setFilterStatus(s)}
-              >
-                {s === 'all' ? 'All' : s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
-                <span className="badge">{counts[s]}</span>
-              </button>
-            ))}
-          </nav>
-
-          <div className="filter-selects">
-            <select
-              className="select-input filter-select"
-              value={filterCompany}
-              onChange={(e) => setFilterCompany(e.target.value)}
-            >
-              <option value="">All companies</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-
-            <select
-              className="select-input filter-select"
-              value={filterContact}
-              onChange={(e) => setFilterContact(e.target.value)}
-            >
-              <option value="">All contacts</option>
-              {favouriteContacts.length > 0 && (
-                <optgroup label="Favourites">
-                  {favouriteContacts.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </optgroup>
-              )}
-              {otherContacts.length > 0 && (
-                <optgroup label="Others">
-                  {otherContacts.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-
-            {(filterCompany || filterContact) && (
-              <button className="link-btn" onClick={() => { setFilterCompany(''); setFilterContact(''); }}>
-                Clear filters
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -287,20 +232,70 @@ export default function App() {
 
       <main className="main">
         {!loading && !error && (
-          <div className="stats-row">
-            <div className="stat-card">
-              <div className="stat-number">{counts.all}</div>
-              <div className="stat-label">tasks</div>
+          <>
+            <div className="stats-row">
+              {([
+                ['all', 'tasks', counts.all],
+                ['todo', 'to do', counts.todo],
+                ['in_progress', 'in progress', counts.in_progress],
+                ['done', 'done', counts.done],
+              ] as [FilterStatus, string, number][]).map(([status, label, n]) => (
+                <button
+                  key={status}
+                  className={`stat-card clickable ${filterStatus === status ? 'active' : ''}`}
+                  onClick={() => setFilterStatus(status)}
+                >
+                  <div className="stat-number">{n}</div>
+                  <div className="stat-label">{label}</div>
+                </button>
+              ))}
             </div>
-            <div className="stat-card">
-              <div className="stat-number">{counts.todo}</div>
-              <div className="stat-label">to do</div>
+
+            <div className="list-controls">
+              <select
+                className="select-input"
+                value={filterCompany}
+                onChange={(e) => setFilterCompany(e.target.value)}
+              >
+                <option value="">All companies</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+
+              <select
+                className="select-input"
+                value={filterContact}
+                onChange={(e) => setFilterContact(e.target.value)}
+              >
+                <option value="">All contacts</option>
+                {favouriteContacts.length > 0 && (
+                  <optgroup label="Favourites">
+                    {favouriteContacts.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {otherContacts.length > 0 && (
+                  <optgroup label="Others">
+                    {otherContacts.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+
+              {(filterCompany || filterContact) && (
+                <button className="link-btn" onClick={() => { setFilterCompany(''); setFilterContact(''); }}>
+                  Clear filters
+                </button>
+              )}
+
+              <button className="btn-secondary spacer" onClick={handleRefresh} disabled={refreshing} title="Reload tasks">
+                {refreshing ? 'Refreshing…' : '↻ Refresh'}
+              </button>
             </div>
-            <div className="stat-card">
-              <div className="stat-number">{companies.length}</div>
-              <div className="stat-label">companies</div>
-            </div>
-          </div>
+          </>
         )}
 
         {showAddForm && (
@@ -351,7 +346,7 @@ export default function App() {
           <div className="state-message">Loading…</div>
         ) : error ? (
           <div className="state-message error">{error}</div>
-        ) : tasks.length === 0 ? (
+        ) : visibleTasks.length === 0 ? (
           <div className="state-card">
             <div className="state-message muted">
               {filterStatus === 'all' && !filterCompany && !filterContact
@@ -361,7 +356,7 @@ export default function App() {
           </div>
         ) : (
           <TaskList
-            tasks={tasks}
+            tasks={visibleTasks}
             selected={selectedTask}
             onSelect={setSelectedTask}
             onStatusChange={handleStatusChange}
