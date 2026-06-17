@@ -32,9 +32,12 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   if (company_id) { conditions.push('company_id = ?'); params.push(company_id); }
   if (contact_id) { conditions.push('contact_id = ?'); params.push(contact_id); }
 
-  let query = 'SELECT * FROM tasks';
+  let query = `SELECT t.*,
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id) AS subtask_total,
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.done = 1) AS subtask_done
+    FROM tasks t`;
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
-  query += ' ORDER BY created_at DESC';
+  query += ' ORDER BY t.created_at DESC';
 
   const { results } = await ctx.env.DB.prepare(query).bind(...params).all();
   return json(results);

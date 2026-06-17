@@ -56,9 +56,16 @@ export default function App() {
     loadTasks();
   }, [loadTasks]);
 
+  // Preserve subtask counts (the PATCH response doesn't include them).
+  const mergeCounts = (prev: Task, next: Task): Task => ({
+    ...next,
+    subtask_total: prev.subtask_total,
+    subtask_done: prev.subtask_done,
+  });
+
   const handleStatusChange = async (task: Task, status: TaskStatus) => {
     const updated = await api.updateTask(task.id, { status });
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    setTasks((prev) => prev.map((t) => (t.id === updated.id ? mergeCounts(t, updated) : t)));
     if (selectedTask?.id === updated.id) setSelectedTask(updated);
   };
 
@@ -83,8 +90,12 @@ export default function App() {
   };
 
   const handleTaskUpdate = (updated: Task) => {
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    setTasks((prev) => prev.map((t) => (t.id === updated.id ? mergeCounts(t, updated) : t)));
     setSelectedTask(updated);
+  };
+
+  const handleSubtaskProgress = (taskId: string, total: number, done: number) => {
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, subtask_total: total, subtask_done: done } : t)));
   };
 
   const handleNewCompany = async (name: string) => {
@@ -361,6 +372,7 @@ export default function App() {
               onClose={() => setSelectedTask(null)}
               onUpdate={handleTaskUpdate}
               onDelete={handleDelete}
+              onSubtaskProgress={handleSubtaskProgress}
             />
           </div>
         </div>

@@ -135,6 +135,9 @@ export default function TaskList({
                 <div className="cell-title-row">
                   <span className="cell-title">{task.title}</span>
                   {task.source === 'email' && <span className="tag">email</span>}
+                  {(task.subtask_total ?? 0) > 0 && (
+                    <span className="subtask-badge">☑ {task.subtask_done ?? 0}/{task.subtask_total}</span>
+                  )}
                 </div>
               </td>
 

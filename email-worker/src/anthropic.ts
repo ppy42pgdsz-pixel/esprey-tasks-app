@@ -13,6 +13,7 @@ export interface ParsedTask {
   title: string;
   description: string;
   priority: 'low' | 'normal' | 'high';
+  subtasks: string[];
 }
 
 export interface AiAttachment {
@@ -40,12 +41,18 @@ Email body:
 ${input.body.slice(0, 4000)}
 ${hasAttachments ? '\nThe attached files (images/PDFs) are part of the same email — read them and factor their contents into the task.' : ''}
 
-Extract a single task. Return ONLY a single JSON object, nothing before or after it, with these fields:
+Extract a task. Return ONLY a single JSON object, nothing before or after it, with these fields:
 {
   "title": "Short, action-oriented task title (max 100 chars)",
   "description": "Brief summary of what needs to be done or followed up on, incorporating anything relevant from the attachments (max 300 chars)",
-  "priority": "low|normal|high"
+  "priority": "low|normal|high",
+  "subtasks": ["distinct action item", "another action item"]
 }
+
+Subtasks rule:
+- If the email contains MULTIPLE distinct things to follow up on or do, list each as a short action-oriented string in "subtasks" (max ~12 words each).
+- If there is only ONE thing to do, return an empty array: "subtasks": [].
+- The title should summarise the overall task; the subtasks are the individual steps.
 
 Formatting rules (important):
 - Output ONLY the JSON object — no markdown, no code fences, no commentary.
@@ -109,9 +116,14 @@ export function parseTaskJson(text: string): ParsedTask {
   const priority: ParsedTask['priority'] =
     obj.priority === 'low' || obj.priority === 'high' ? obj.priority : 'normal';
 
+  const subtasks = Array.isArray(obj.subtasks)
+    ? obj.subtasks.map((s) => String(s).trim()).filter((s) => s.length > 0).slice(0, 20)
+    : [];
+
   return {
     title: String(obj.title ?? '').trim().slice(0, 100),
     description: String(obj.description ?? '').trim().slice(0, 500),
     priority,
+    subtasks,
   };
 }

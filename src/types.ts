@@ -21,6 +21,18 @@ export interface Task {
   created_at: number;
   updated_at: number;
   due_date: number | null;
+  // Present on the list endpoint (subtask progress); optional elsewhere.
+  subtask_total?: number;
+  subtask_done?: number;
+}
+
+export interface Subtask {
+  id: string;
+  task_id: string;
+  text: string;
+  done: number; // 1 = done
+  position: number;
+  created_at: number;
 }
 
 export interface Company {

@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment } from './types';
+import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment, Subtask } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -54,4 +54,13 @@ export const api = {
     request<Contact>(`/api/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteContact: (id: string) =>
     request<{ ok: boolean }>(`/api/contacts/${id}`, { method: 'DELETE' }),
+
+  listSubtasks: (taskId: string) =>
+    request<Subtask[]>(`/api/tasks/${taskId}/subtasks`),
+  createSubtask: (taskId: string, text: string) =>
+    request<Subtask>(`/api/tasks/${taskId}/subtasks`, { method: 'POST', body: JSON.stringify({ text }) }),
+  updateSubtask: (id: string, data: { text?: string; done?: boolean }) =>
+    request<Subtask>(`/api/subtasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteSubtask: (id: string) =>
+    request<{ ok: boolean }>(`/api/subtasks/${id}`, { method: 'DELETE' }),
 };

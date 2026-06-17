@@ -115,6 +115,7 @@ export default {
         title: subject.slice(0, 100),
         description: combinedBody.slice(0, 500),
         priority: 'normal',
+        subtasks: [],
       };
       console.error('Claude extraction failed, using fallback:', err);
     }
@@ -142,6 +143,22 @@ export default {
         now,
       )
       .run();
+
+    // Insert any subtasks Claude extracted.
+    if (task.subtasks.length > 0) {
+      try {
+        await env.DB.batch(
+          task.subtasks.map((text, i) =>
+            env.DB.prepare(
+              `INSERT INTO subtasks (id, task_id, text, done, position, created_at)
+               VALUES (?, ?, ?, 0, ?, ?)`,
+            ).bind(nanoid(), id, text.slice(0, 300), i, now),
+          ),
+        );
+      } catch (e) {
+        console.error('failed to insert subtasks:', e);
+      }
+    }
 
     // Persist the original attachments to R2 + record them, isolated per-file.
     let storedCount = 0;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment } from '../types';
+import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment, Subtask } from '../types';
 import { api } from '../api';
 import PeoplePicker from './PeoplePicker';
 
@@ -10,21 +10,52 @@ interface Props {
   onClose: () => void;
   onUpdate: (task: Task) => void;
   onDelete: (task: Task) => void;
+  onSubtaskProgress?: (taskId: string, total: number, done: number) => void;
 }
 
-export default function TaskDetail({ task, companies, contacts, onClose, onUpdate, onDelete }: Props) {
+export default function TaskDetail({ task, companies, contacts, onClose, onUpdate, onDelete, onSubtaskProgress }: Props) {
   const [generatingReply, setGeneratingReply] = useState(false);
   const [editingReply, setEditingReply] = useState(false);
   const [replyText, setReplyText] = useState(task.draft_reply ?? '');
   const [editingDesc, setEditingDesc] = useState(false);
   const [descText, setDescText] = useState(task.description);
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [newSubtask, setNewSubtask] = useState('');
 
   const selectedContact = contacts.find((c) => c.id === task.contact_id) ?? null;
+  const doneCount = subtasks.filter((s) => s.done === 1).length;
 
   useEffect(() => {
     api.listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
+    api.listSubtasks(task.id)
+      .then((s) => { setSubtasks(s); onSubtaskProgress?.(task.id, s.length, s.filter((x) => x.done === 1).length); })
+      .catch(() => setSubtasks([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
+
+  const commitSubtasks = (next: Subtask[]) => {
+    setSubtasks(next);
+    onSubtaskProgress?.(task.id, next.length, next.filter((s) => s.done === 1).length);
+  };
+
+  const toggleSubtask = async (s: Subtask) => {
+    const updated = await api.updateSubtask(s.id, { done: s.done !== 1 });
+    commitSubtasks(subtasks.map((x) => (x.id === updated.id ? updated : x)));
+  };
+
+  const addSubtask = async () => {
+    const text = newSubtask.trim();
+    if (!text) return;
+    const created = await api.createSubtask(task.id, text);
+    setNewSubtask('');
+    commitSubtasks([...subtasks, created]);
+  };
+
+  const deleteSubtask = async (id: string) => {
+    await api.deleteSubtask(id);
+    commitSubtasks(subtasks.filter((x) => x.id !== id));
+  };
 
   const handleGenerateReply = async () => {
     setGeneratingReply(true);
@@ -148,6 +179,39 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
           )}
         </div>
       )}
+
+      {/* Subtasks */}
+      <div className="detail-section">
+        <div className="section-label">
+          Subtasks{subtasks.length > 0 ? ` · ${doneCount}/${subtasks.length}` : ''}
+        </div>
+        {subtasks.length > 0 && (
+          <ul className="subtask-list">
+            {subtasks.map((s) => (
+              <li key={s.id} className={`subtask-item ${s.done === 1 ? 'done' : ''}`}>
+                <input
+                  type="checkbox"
+                  className="select-checkbox"
+                  checked={s.done === 1}
+                  onChange={() => toggleSubtask(s)}
+                />
+                <span className="subtask-text">{s.text}</span>
+                <button className="subtask-del" onClick={() => deleteSubtask(s.id)} aria-label="Delete subtask">×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="inline-add mt">
+          <input
+            className="text-input"
+            placeholder="Add a subtask"
+            value={newSubtask}
+            onChange={(e) => setNewSubtask(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addSubtask()}
+          />
+          <button className="btn-primary sm" onClick={addSubtask} disabled={!newSubtask.trim()}>Add</button>
+        </div>
+      </div>
 
       {attachments.length > 0 && (
         <div className="detail-section">
