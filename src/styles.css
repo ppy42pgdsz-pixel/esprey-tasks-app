@@ -120,8 +120,14 @@ body {
 .task-table tbody tr.checked { background: #eef2ff; }
 .task-table tbody tr.done .cell-title { color: #a8a29e; text-decoration: line-through; }
 
-.col-check { width: 36px; }
+.col-check { width: 36px; text-align: center; }
 .col-actions { width: 72px; text-align: right; }
+
+/* Sortable headers */
+.task-table th.sortable { cursor: pointer; user-select: none; }
+.task-table th.sortable:hover { color: #1c1917; }
+.th-inner { display: inline-flex; align-items: center; gap: 4px; }
+.sort-arrow { font-size: 9px; color: #4f46e5; }
 .cell-title { font-weight: 500; color: #1c1917; }
 .cell-title-row { display: flex; align-items: center; gap: 8px; }
 .cell-muted { color: #78716c; }
@@ -266,7 +272,7 @@ body {
   z-index: 5;
 }
 .bulk-select { width: auto; font-size: 13px; padding: 6px 10px; }
-.bulk-bar .checkbox-label { color: #1c1917; font-weight: 500; }
+.bulk-count { color: #1c1917; font-weight: 600; font-size: 14px; }
 .bulk-bar .btn-danger { margin-left: auto; }
 .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #57534e; cursor: pointer; white-space: nowrap; }
 

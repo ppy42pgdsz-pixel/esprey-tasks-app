@@ -25,7 +25,6 @@ export default function App() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Load companies and contacts once
@@ -139,16 +138,8 @@ export default function App() {
     setRefreshing(false);
   };
 
-  // ─── Multi-select bulk edit ───
-  const enterSelectMode = () => {
-    setSelectedTask(null);
-    setSelectedIds(new Set());
-    setSelectMode(true);
-  };
-  const exitSelectMode = () => {
-    setSelectMode(false);
-    setSelectedIds(new Set());
-  };
+  // ─── Multi-select bulk edit (checkboxes always visible) ───
+  const clearSelection = () => setSelectedIds(new Set());
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -203,9 +194,6 @@ export default function App() {
         <div className="header-content">
           <h1 className="logo">Tasks</h1>
           <div className="header-actions">
-            <button className="btn-secondary" onClick={selectMode ? exitSelectMode : enterSelectMode}>
-              {selectMode ? 'Done' : 'Select'}
-            </button>
             <button className="btn-secondary" onClick={() => setShowSettings(true)}>
               Settings
             </button>
@@ -307,16 +295,12 @@ export default function App() {
           />
         )}
 
-        {selectMode && (
+        {selectedIds.size > 0 && (
           <div className="bulk-bar">
-            <label className="checkbox-label">
-              <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
-              {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
-            </label>
+            <span className="bulk-count">{selectedIds.size} selected</span>
             <select
               className="select-input bulk-select"
               value=""
-              disabled={selectedIds.size === 0}
               onChange={(e) => e.target.value && handleBulkStatus(e.target.value as TaskStatus)}
             >
               <option value="">Set status…</option>
@@ -327,7 +311,6 @@ export default function App() {
             <select
               className="select-input bulk-select"
               value=""
-              disabled={selectedIds.size === 0}
               onChange={(e) => e.target.value && handleBulkCompany(e.target.value)}
             >
               <option value="">Set company…</option>
@@ -336,9 +319,8 @@ export default function App() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <button className="btn-danger" disabled={selectedIds.size === 0} onClick={handleBulkDelete}>
-              Delete
-            </button>
+            <button className="link-btn" onClick={clearSelection}>Clear</button>
+            <button className="btn-danger" onClick={handleBulkDelete}>Delete</button>
           </div>
         )}
 
@@ -360,15 +342,15 @@ export default function App() {
             selected={selectedTask}
             onSelect={setSelectedTask}
             onStatusChange={handleStatusChange}
-            onDelete={handleDelete}
-            selectMode={selectMode}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
+            allSelected={allSelected}
+            onToggleSelectAll={toggleSelectAll}
           />
         )}
       </main>
 
-      {selectedTask && !selectMode && (
+      {selectedTask && (
         <div className="detail-overlay" onClick={() => setSelectedTask(null)}>
           <div className="detail-slideover" onClick={(e) => e.stopPropagation()}>
             <TaskDetail
