@@ -10,18 +10,14 @@ interface Props {
   onClose: () => void;
   onUpdate: (task: Task) => void;
   onDelete: (task: Task) => void;
-  onNewCompany: (name: string) => Promise<Company>;
-  onNewContact: (data: { name: string; is_favourite?: boolean }) => Promise<Contact>;
 }
 
-export default function TaskDetail({ task, companies, contacts, onClose, onUpdate, onDelete, onNewCompany, onNewContact }: Props) {
+export default function TaskDetail({ task, companies, contacts, onClose, onUpdate, onDelete }: Props) {
   const [generatingReply, setGeneratingReply] = useState(false);
   const [editingReply, setEditingReply] = useState(false);
   const [replyText, setReplyText] = useState(task.draft_reply ?? '');
   const [editingDesc, setEditingDesc] = useState(false);
   const [descText, setDescText] = useState(task.description);
-  const [addingCompany, setAddingCompany] = useState(false);
-  const [newCompanyName, setNewCompanyName] = useState('');
 
   const selectedContact = contacts.find((c) => c.id === task.contact_id) ?? null;
 
@@ -75,14 +71,6 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
     onUpdate(updated);
   };
 
-  const handleAddCompany = async () => {
-    if (!newCompanyName.trim()) return;
-    const company = await onNewCompany(newCompanyName.trim());
-    await handleCompanyChange(company.id);
-    setNewCompanyName('');
-    setAddingCompany(false);
-  };
-
   const copyToClipboard = (text: string) => navigator.clipboard.writeText(text);
 
   return (
@@ -116,32 +104,19 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
       {/* Company */}
       <div className="detail-section">
         <div className="section-label">Company</div>
-        {addingCompany ? (
-          <div className="inline-add">
-            <input
-              className="text-input"
-              placeholder="Company name"
-              value={newCompanyName}
-              onChange={(e) => setNewCompanyName(e.target.value)}
-              autoFocus
-            />
-            <button className="btn-primary sm" onClick={handleAddCompany}>Add</button>
-            <button className="btn-secondary sm" onClick={() => setAddingCompany(false)}>Cancel</button>
-          </div>
+        {companies.length === 0 ? (
+          <p className="muted">No companies yet. Add them in Settings.</p>
         ) : (
-          <div className="company-select-row">
-            <select
-              className="select-input"
-              value={task.company_id ?? ''}
-              onChange={(e) => handleCompanyChange(e.target.value)}
-            >
-              <option value="">No company</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <button className="link-btn" onClick={() => setAddingCompany(true)}>+ new</button>
-          </div>
+          <select
+            className="select-input"
+            value={task.company_id ?? ''}
+            onChange={(e) => handleCompanyChange(e.target.value)}
+          >
+            <option value="">No company</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
         )}
       </div>
 
@@ -151,7 +126,6 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
           contacts={contacts}
           selected={selectedContact}
           onSelect={handleContactSelect}
-          onNewContact={onNewContact}
         />
       </div>
 

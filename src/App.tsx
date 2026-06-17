@@ -89,12 +89,6 @@ export default function App() {
     return company;
   };
 
-  const handleNewContact = async (data: { name: string; is_favourite?: boolean }) => {
-    const contact = await api.createContact(data);
-    setContacts((prev) => sortContacts([...prev, contact]));
-    return contact;
-  };
-
   // ─── Settings: company management ───
   const handleRenameCompany = async (id: string, name: string) => {
     const updated = await api.updateCompany(id, name);
@@ -236,8 +230,6 @@ export default function App() {
             contacts={contacts}
             onSubmit={handleAdd}
             onCancel={() => setShowAddForm(false)}
-            onNewCompany={handleNewCompany}
-            onNewContact={handleNewContact}
           />
         )}
 
@@ -268,8 +260,6 @@ export default function App() {
                 onClose={() => setSelectedTask(null)}
                 onUpdate={handleTaskUpdate}
                 onDelete={handleDelete}
-                onNewCompany={handleNewCompany}
-                onNewContact={handleNewContact}
               />
             )}
           </div>

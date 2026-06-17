@@ -15,29 +15,17 @@ interface Props {
     contact_name?: string;
   }) => Promise<void>;
   onCancel: () => void;
-  onNewCompany: (name: string) => Promise<Company>;
-  onNewContact: (data: { name: string; is_favourite?: boolean }) => Promise<Contact>;
 }
 
-export default function AddTaskForm({ companies, contacts, onSubmit, onCancel, onNewCompany, onNewContact }: Props) {
+export default function AddTaskForm({ companies, contacts, onSubmit, onCancel }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('normal');
   const [companyId, setCompanyId] = useState('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [newCompanyName, setNewCompanyName] = useState('');
-  const [addingCompany, setAddingCompany] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const selectedCompany = companies.find((c) => c.id === companyId);
-
-  const handleAddCompany = async () => {
-    if (!newCompanyName.trim()) return;
-    const company = await onNewCompany(newCompanyName.trim());
-    setCompanyId(company.id);
-    setNewCompanyName('');
-    setAddingCompany(false);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,33 +80,16 @@ export default function AddTaskForm({ companies, contacts, onSubmit, onCancel, o
           </select>
 
           <div className="company-field">
-            {addingCompany ? (
-              <div className="inline-add">
-                <input
-                  className="text-input"
-                  placeholder="Company name"
-                  value={newCompanyName}
-                  onChange={(e) => setNewCompanyName(e.target.value)}
-                  autoFocus
-                />
-                <button type="button" className="btn-primary sm" onClick={handleAddCompany}>Add</button>
-                <button type="button" className="btn-secondary sm" onClick={() => setAddingCompany(false)}>Cancel</button>
-              </div>
-            ) : (
-              <div className="company-select-row">
-                <select
-                  className="select-input"
-                  value={companyId}
-                  onChange={(e) => setCompanyId(e.target.value)}
-                >
-                  <option value="">No company</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                <button type="button" className="link-btn" onClick={() => setAddingCompany(true)}>+ new</button>
-              </div>
-            )}
+            <select
+              className="select-input"
+              value={companyId}
+              onChange={(e) => setCompanyId(e.target.value)}
+            >
+              <option value="">No company</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -126,7 +97,6 @@ export default function AddTaskForm({ companies, contacts, onSubmit, onCancel, o
           contacts={contacts}
           selected={selectedContact}
           onSelect={setSelectedContact}
-          onNewContact={onNewContact}
         />
 
         <div className="form-actions">
