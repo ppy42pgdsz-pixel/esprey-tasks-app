@@ -34,7 +34,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
 
   let query = `SELECT t.*,
     (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id) AS subtask_total,
-    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.done = 1) AS subtask_done
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done') AS subtask_done
     FROM tasks t`;
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
   query += ' ORDER BY t.created_at DESC';

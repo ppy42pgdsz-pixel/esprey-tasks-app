@@ -30,7 +30,8 @@ export interface Subtask {
   id: string;
   task_id: string;
   text: string;
-  done: number; // 1 = done
+  done: number; // 1 = done (legacy mirror of status === 'done')
+  status: TaskStatus; // todo | in_progress | done
   position: number;
   created_at: number;
 }

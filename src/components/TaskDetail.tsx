@@ -19,6 +19,9 @@ function splitIntoItems(raw: string): string[] {
     .filter((s) => s.length > 0);
 }
 
+const SUB_NEXT: Record<TaskStatus, TaskStatus> = { todo: 'in_progress', in_progress: 'done', done: 'todo' };
+const SUB_LABEL: Record<TaskStatus, string> = { todo: 'To Do', in_progress: 'In Progress', done: 'Done' };
+
 interface Props {
   task: Task;
   companies: Company[];
@@ -40,7 +43,7 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
   const [newSubtask, setNewSubtask] = useState('');
 
   const selectedContact = contacts.find((c) => c.id === task.contact_id) ?? null;
-  const doneCount = subtasks.filter((s) => s.done === 1).length;
+  const doneCount = subtasks.filter((s) => s.status === 'done').length;
 
   useEffect(() => {
     api.listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
@@ -52,11 +55,11 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
 
   const commitSubtasks = (next: Subtask[]) => {
     setSubtasks(next);
-    onSubtaskProgress?.(task.id, next.length, next.filter((s) => s.done === 1).length);
+    onSubtaskProgress?.(task.id, next.length, next.filter((s) => s.status === 'done').length);
   };
 
-  const toggleSubtask = async (s: Subtask) => {
-    const updated = await api.updateSubtask(s.id, { done: s.done !== 1 });
+  const cycleSubtaskStatus = async (s: Subtask) => {
+    const updated = await api.updateSubtask(s.id, { status: SUB_NEXT[s.status] });
     commitSubtasks(subtasks.map((x) => (x.id === updated.id ? updated : x)));
   };
 
@@ -207,15 +210,16 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
         {subtasks.length > 0 && (
           <ul className="subtask-list">
             {subtasks.map((s) => (
-              <li key={s.id} className={`subtask-item ${s.done === 1 ? 'done' : ''}`}>
-                <input
-                  type="checkbox"
-                  className="select-checkbox"
-                  checked={s.done === 1}
-                  onChange={() => toggleSubtask(s)}
-                />
+              <li key={s.id} className={`subtask-item ${s.status === 'done' ? 'done' : ''}`}>
+                <span
+                  className={`status-pill ${s.status}`}
+                  title={`Mark as ${SUB_LABEL[SUB_NEXT[s.status]]}`}
+                  onClick={() => cycleSubtaskStatus(s)}
+                >
+                  {SUB_LABEL[s.status]}
+                </span>
                 <span className="subtask-text">{s.text}</span>
-                <button className="subtask-del" onClick={() => deleteSubtask(s.id)} aria-label="Delete subtask">×</button>
+                <button className="subtask-del" onClick={() => deleteSubtask(s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>
               </li>
             ))}
           </ul>

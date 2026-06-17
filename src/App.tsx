@@ -357,6 +357,7 @@ export default function App() {
             onToggleSelect={toggleSelect}
             allSelected={allSelected}
             onToggleSelectAll={toggleSelectAll}
+            onSubtaskProgress={handleSubtaskProgress}
           />
         )}
       </main>

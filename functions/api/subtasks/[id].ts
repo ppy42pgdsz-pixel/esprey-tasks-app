@@ -11,9 +11,11 @@ function json(data: unknown, status = 200) {
   });
 }
 
+type SubStatus = 'todo' | 'in_progress' | 'done';
+
 export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
-  const body = await ctx.request.json<{ text?: string; done?: boolean }>();
+  const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus }>();
 
   const updates: string[] = [];
   const values: unknown[] = [];
@@ -24,9 +26,17 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     updates.push('text = ?');
     values.push(text.slice(0, 300));
   }
-  if ('done' in body) {
+  if ('status' in body) {
+    const status: SubStatus = body.status === 'in_progress' || body.status === 'done' ? body.status : 'todo';
+    updates.push('status = ?');
+    values.push(status);
+    updates.push('done = ?'); // keep the legacy flag in sync
+    values.push(status === 'done' ? 1 : 0);
+  } else if ('done' in body) {
     updates.push('done = ?');
     values.push(body.done ? 1 : 0);
+    updates.push('status = ?');
+    values.push(body.done ? 'done' : 'todo');
   }
   if (updates.length === 0) return json({ error: 'No valid fields to update' }, 400);
 

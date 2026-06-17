@@ -59,7 +59,7 @@ export const api = {
     request<Subtask[]>(`/api/tasks/${taskId}/subtasks`),
   createSubtask: (taskId: string, text: string) =>
     request<Subtask>(`/api/tasks/${taskId}/subtasks`, { method: 'POST', body: JSON.stringify({ text }) }),
-  updateSubtask: (id: string, data: { text?: string; done?: boolean }) =>
+  updateSubtask: (id: string, data: { text?: string; done?: boolean; status?: TaskStatus }) =>
     request<Subtask>(`/api/subtasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteSubtask: (id: string) =>
     request<{ ok: boolean }>(`/api/subtasks/${id}`, { method: 'DELETE' }),

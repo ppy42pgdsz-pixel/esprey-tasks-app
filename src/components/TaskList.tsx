@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import type { Task, TaskStatus } from '../types';
+import { Fragment, useState } from 'react';
+import type { Task, TaskStatus, Subtask } from '../types';
+import { api } from '../api';
 
 const PRIORITY_COLORS: Record<string, string> = {
   high: '#dc2626',
@@ -18,6 +19,8 @@ const STATUS_NEXT: Record<TaskStatus, TaskStatus> = {
 const STATUS_LABEL: Record<TaskStatus, string> = { todo: 'To Do', in_progress: 'In Progress', done: 'Done' };
 const STATUS_RANK: Record<TaskStatus, number> = { todo: 0, in_progress: 1, done: 2 };
 
+const COL_COUNT = 8; // check, status, title, company, contact, priority, date, actions
+
 type SortKey = 'status' | 'title' | 'company' | 'contact' | 'priority' | 'date';
 type SortDir = 'asc' | 'desc';
 
@@ -34,6 +37,7 @@ interface Props {
   onToggleSelect: (id: string) => void;
   allSelected: boolean;
   onToggleSelectAll: () => void;
+  onSubtaskProgress?: (taskId: string, total: number, done: number) => void;
 }
 
 export default function TaskList({
@@ -45,9 +49,12 @@ export default function TaskList({
   onToggleSelect,
   allSelected,
   onToggleSelectAll,
+  onSubtaskProgress,
 }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [subsByTask, setSubsByTask] = useState<Record<string, Subtask[]>>({});
 
   const sorted = [...tasks].sort((a, b) => {
     let cmp = 0;
@@ -63,34 +70,55 @@ export default function TaskList({
   });
 
   const sortBy = (key: SortKey) => {
-    if (key === sortKey) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir(key === 'date' ? 'desc' : 'asc');
-    }
+    if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir(key === 'date' ? 'desc' : 'asc'); }
   };
-
   const arrow = (key: SortKey) => (sortKey === key ? (sortDir === 'asc' ? '▲' : '▼') : '');
-
   const header = (key: SortKey, label: string) => (
     <th className="sortable" onClick={() => sortBy(key)}>
       <span className="th-inner">{label}<span className="sort-arrow">{arrow(key)}</span></span>
     </th>
   );
 
+  const toggleExpand = async (taskId: string) => {
+    const willExpand = !expanded.has(taskId);
+    setExpanded((prev) => {
+      const n = new Set(prev);
+      if (n.has(taskId)) n.delete(taskId);
+      else n.add(taskId);
+      return n;
+    });
+    if (willExpand) {
+      try {
+        const subs = await api.listSubtasks(taskId);
+        setSubsByTask((prev) => ({ ...prev, [taskId]: subs }));
+      } catch {
+        setSubsByTask((prev) => ({ ...prev, [taskId]: [] }));
+      }
+    }
+  };
+
+  const commitSubs = (taskId: string, list: Subtask[]) => {
+    setSubsByTask((prev) => ({ ...prev, [taskId]: list }));
+    onSubtaskProgress?.(taskId, list.length, list.filter((s) => s.status === 'done').length);
+  };
+
+  const cycleSub = async (taskId: string, s: Subtask) => {
+    const updated = await api.updateSubtask(s.id, { status: STATUS_NEXT[s.status] });
+    commitSubs(taskId, (subsByTask[taskId] ?? []).map((x) => (x.id === updated.id ? updated : x)));
+  };
+
+  const delSub = async (taskId: string, id: string) => {
+    await api.deleteSubtask(id);
+    commitSubs(taskId, (subsByTask[taskId] ?? []).filter((x) => x.id !== id));
+  };
+
   return (
     <table className="task-table">
       <thead>
         <tr>
           <th className="col-check">
-            <input
-              type="checkbox"
-              className="select-checkbox"
-              checked={allSelected}
-              onChange={onToggleSelectAll}
-              aria-label="Select all"
-            />
+            <input type="checkbox" className="select-checkbox" checked={allSelected} onChange={onToggleSelectAll} aria-label="Select all" />
           </th>
           {header('status', 'Status')}
           {header('title', 'Title')}
@@ -104,6 +132,8 @@ export default function TaskList({
       <tbody>
         {sorted.map((task) => {
           const checked = selectedIds.has(task.id);
+          const isExpanded = expanded.has(task.id);
+          const hasSubs = (task.subtask_total ?? 0) > 0;
           const rowClass = [
             task.status === 'done' ? 'done' : '',
             selected?.id === task.id ? 'selected-row' : '',
@@ -111,55 +141,79 @@ export default function TaskList({
           ].filter(Boolean).join(' ');
 
           return (
-            <tr key={task.id} className={rowClass} onClick={() => onSelect(task)}>
-              <td className="col-check" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="checkbox"
-                  className="select-checkbox"
-                  checked={checked}
-                  onChange={() => onToggleSelect(task.id)}
-                />
-              </td>
+            <Fragment key={task.id}>
+              <tr className={rowClass} onClick={() => onSelect(task)}>
+                <td className="col-check" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" className="select-checkbox" checked={checked} onChange={() => onToggleSelect(task.id)} />
+                </td>
 
-              <td>
-                <span
-                  className={`status-pill ${task.status}`}
-                  title={`Mark as ${STATUS_LABEL[STATUS_NEXT[task.status]]}`}
-                  onClick={(e) => { e.stopPropagation(); onStatusChange(task, STATUS_NEXT[task.status]); }}
-                >
-                  {STATUS_LABEL[task.status]}
-                </span>
-              </td>
+                <td>
+                  <span
+                    className={`status-pill ${task.status}`}
+                    title={`Mark as ${STATUS_LABEL[STATUS_NEXT[task.status]]}`}
+                    onClick={(e) => { e.stopPropagation(); onStatusChange(task, STATUS_NEXT[task.status]); }}
+                  >
+                    {STATUS_LABEL[task.status]}
+                  </span>
+                </td>
 
-              <td>
-                <div className="cell-title-row">
-                  <span className="cell-title">{task.title}</span>
-                  {task.source === 'email' && <span className="tag">email</span>}
-                  {(task.subtask_total ?? 0) > 0 && (
-                    <span className="subtask-badge">☑ {task.subtask_done ?? 0}/{task.subtask_total}</span>
-                  )}
-                </div>
-              </td>
+                <td>
+                  <div className="cell-title-row">
+                    {hasSubs && (
+                      <button
+                        className="expand-chevron"
+                        onClick={(e) => { e.stopPropagation(); toggleExpand(task.id); }}
+                        aria-label="Toggle subtasks"
+                      >
+                        {isExpanded ? '▾' : '▸'}
+                      </button>
+                    )}
+                    <span className="cell-title">{task.title}</span>
+                    {task.source === 'email' && <span className="tag">email</span>}
+                    {hasSubs && (
+                      <span className="subtask-badge">☑ {task.subtask_done ?? 0}/{task.subtask_total}</span>
+                    )}
+                  </div>
+                </td>
 
-              <td>{task.company_name ? <span className="tag">{task.company_name}</span> : <span className="cell-muted">—</span>}</td>
+                <td>{task.company_name ? <span className="tag">{task.company_name}</span> : <span className="cell-muted">—</span>}</td>
+                <td>{task.contact_name ? task.contact_name : <span className="cell-muted">—</span>}</td>
+                <td>
+                  <span className="priority-cell">
+                    <span className="priority-dot" style={{ color: PRIORITY_COLORS[task.priority] }}>●</span>
+                    {PRIORITY_LABEL[task.priority]}
+                  </span>
+                </td>
+                <td className="cell-muted">{formatDate(task.created_at)}</td>
+                <td className="col-actions">
+                  <button className="row-open" onClick={(e) => { e.stopPropagation(); onSelect(task); }}>Open</button>
+                </td>
+              </tr>
 
-              <td>{task.contact_name ? task.contact_name : <span className="cell-muted">—</span>}</td>
+              {isExpanded && !subsByTask[task.id] && (
+                <tr className="subtask-row">
+                  <td colSpan={COL_COUNT}><div className="subtask-line"><span className="cell-muted">Loading…</span></div></td>
+                </tr>
+              )}
 
-              <td>
-                <span className="priority-cell">
-                  <span className="priority-dot" style={{ color: PRIORITY_COLORS[task.priority] }}>●</span>
-                  {PRIORITY_LABEL[task.priority]}
-                </span>
-              </td>
-
-              <td className="cell-muted">{formatDate(task.created_at)}</td>
-
-              <td className="col-actions">
-                <button className="row-open" onClick={(e) => { e.stopPropagation(); onSelect(task); }}>
-                  Open
-                </button>
-              </td>
-            </tr>
+              {isExpanded && (subsByTask[task.id] ?? []).map((s) => (
+                <tr key={s.id} className="subtask-row">
+                  <td colSpan={COL_COUNT}>
+                    <div className={`subtask-line ${s.status === 'done' ? 'done' : ''}`}>
+                      <span
+                        className={`status-pill ${s.status}`}
+                        title={`Mark as ${STATUS_LABEL[STATUS_NEXT[s.status]]}`}
+                        onClick={() => cycleSub(task.id, s)}
+                      >
+                        {STATUS_LABEL[s.status]}
+                      </span>
+                      <span className="subtask-row-text">{s.text}</span>
+                      <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </Fragment>
           );
         })}
       </tbody>
