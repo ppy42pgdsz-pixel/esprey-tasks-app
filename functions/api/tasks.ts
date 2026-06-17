@@ -3,6 +3,8 @@
  * POST /api/tasks        — create a task manually
  */
 
+import { resolvePrimary, rawEmail } from './_lib';
+
 interface Env {
   DB: D1Database;
   ANTHROPIC_API_KEY: string;
@@ -20,24 +22,26 @@ function nanoid() {
 }
 
 export const onRequestGet: PagesFunction<Env> = async (ctx) => {
+  const me = await resolvePrimary(ctx.env.DB, rawEmail(ctx));
   const url = new URL(ctx.request.url);
-  const status = url.searchParams.get('status');
   const company_id = url.searchParams.get('company_id');
   const contact_id = url.searchParams.get('contact_id');
 
-  const conditions: string[] = [];
-  const params: string[] = [];
+  // Only tasks I own or that are shared with me.
+  const conditions: string[] = [
+    '(t.owner_email = ? OR EXISTS (SELECT 1 FROM task_shares ts WHERE ts.task_id = t.id AND ts.user_email = ?))',
+  ];
+  const params: string[] = [me, me];
+  if (company_id) { conditions.push('t.company_id = ?'); params.push(company_id); }
+  if (contact_id) { conditions.push('t.contact_id = ?'); params.push(contact_id); }
 
-  if (status) { conditions.push('status = ?'); params.push(status); }
-  if (company_id) { conditions.push('company_id = ?'); params.push(company_id); }
-  if (contact_id) { conditions.push('contact_id = ?'); params.push(contact_id); }
-
-  let query = `SELECT t.*,
+  const query = `SELECT t.*, u.name AS owner_name,
     (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id) AS subtask_total,
     (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done') AS subtask_done
-    FROM tasks t`;
-  if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
-  query += ' ORDER BY t.created_at DESC';
+    FROM tasks t
+    LEFT JOIN users u ON u.email = t.owner_email
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY t.created_at DESC`;
 
   const { results } = await ctx.env.DB.prepare(query).bind(...params).all();
   return json(results);
@@ -61,16 +65,18 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
 
   const now = Date.now();
   const id = nanoid();
+  const me = await resolvePrimary(ctx.env.DB, rawEmail(ctx));
 
   await ctx.env.DB.prepare(
-    `INSERT INTO tasks (id, title, description, status, priority, source, created_at, updated_at, due_date, company_id, company_name, contact_id, contact_name)
-     VALUES (?, ?, ?, 'todo', ?, 'manual', ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO tasks (id, title, description, status, priority, source, owner_email, visibility, created_at, updated_at, due_date, company_id, company_name, contact_id, contact_name)
+     VALUES (?, ?, ?, 'todo', ?, 'manual', ?, 'private', ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
       body.title.trim(),
       body.description ?? '',
       body.priority ?? 'normal',
+      me,
       now,
       now,
       body.due_date ?? null,

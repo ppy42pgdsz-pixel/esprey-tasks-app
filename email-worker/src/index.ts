@@ -37,6 +37,21 @@ function isWantedAttachment(att: { mimeType?: string; filename?: string; disposi
   return false;
 }
 
+/**
+ * Resolve the forwarder's address to the owning employee's primary email
+ * (alias-aware). Falls back to the admin until bounce-on-unregistered is wired.
+ */
+async function resolveOwner(db: D1Database, sender: string | undefined, adminEmail: string): Promise<string> {
+  const e = (sender ?? '').toLowerCase();
+  if (e) {
+    const u = await db.prepare('SELECT email FROM users WHERE email = ?').bind(e).first<{ email: string }>();
+    if (u) return u.email.toLowerCase();
+    const a = await db.prepare('SELECT user_email FROM user_aliases WHERE alias_email = ?').bind(e).first<{ user_email: string }>();
+    if (a) return a.user_email.toLowerCase();
+  }
+  return (adminEmail ?? '').toLowerCase();
+}
+
 export default {
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
     const rawEmail = await new Response(message.raw).arrayBuffer();
@@ -122,19 +137,22 @@ export default {
 
     const now = Date.now();
     const id = nanoid();
+    // The task belongs to the employee who forwarded it (envelope sender).
+    const ownerEmail = await resolveOwner(env.DB, message.from, env.ADMIN_EMAIL);
 
     await env.DB.prepare(
       `INSERT INTO tasks (
-        id, title, description, status, priority, source,
+        id, title, description, status, priority, source, owner_email,
         from_email, from_name, original_subject, original_body,
         created_at, updated_at
-      ) VALUES (?, ?, ?, 'todo', ?, 'email', ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, 'todo', ?, 'email', ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         id,
         task.title,
         task.description,
         task.priority,
+        ownerEmail,
         fromEmail,
         fromName,
         subject,
