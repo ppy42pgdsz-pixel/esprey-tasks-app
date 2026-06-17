@@ -71,8 +71,8 @@ export const api = {
     request<User>('/api/users', { method: 'POST', body: JSON.stringify(data) }),
   updateUser: (email: string, data: { name?: string; role?: UserRole }) =>
     request<User>(`/api/users/${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteUser: (email: string) =>
-    request<{ ok: boolean }>(`/api/users/${encodeURIComponent(email)}`, { method: 'DELETE' }),
+  deleteUser: (email: string, wipe = false) =>
+    request<{ ok: boolean }>(`/api/users/${encodeURIComponent(email)}${wipe ? '?wipe=true' : ''}`, { method: 'DELETE' }),
   addUserAlias: (email: string, alias: string) =>
     request<{ ok: boolean; alias: string }>(`/api/users/${encodeURIComponent(email)}/aliases`, { method: 'POST', body: JSON.stringify({ alias }) }),
   removeUserAlias: (email: string, alias: string) =>

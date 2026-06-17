@@ -48,6 +48,28 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   if (!(await isAdmin(ctx))) return json({ error: 'Admin only' }, 403);
   const email = decodeURIComponent((ctx.params as { email: string }).email).toLowerCase();
   if (email === (ctx.env.ADMIN_EMAIL ?? '').toLowerCase()) return json({ error: 'Cannot remove the admin' }, 400);
-  await ctx.env.DB.prepare('DELETE FROM users WHERE email = ?').bind(email).run();
-  return json({ ok: true });
+
+  const wipe = new URL(ctx.request.url).searchParams.get('wipe') === 'true';
+
+  if (wipe) {
+    // Delete all tasks this person owns, plus their dependents.
+    const { results } = await ctx.env.DB.prepare('SELECT id FROM tasks WHERE owner_email = ?').bind(email).all<{ id: string }>();
+    const stmts = [] as D1PreparedStatement[];
+    for (const r of results) {
+      stmts.push(ctx.env.DB.prepare('DELETE FROM subtasks WHERE task_id = ?').bind(r.id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM task_shares WHERE task_id = ?').bind(r.id));
+      stmts.push(ctx.env.DB.prepare('DELETE FROM task_attachments WHERE task_id = ?').bind(r.id));
+    }
+    stmts.push(ctx.env.DB.prepare('DELETE FROM tasks WHERE owner_email = ?').bind(email));
+    if (stmts.length) await ctx.env.DB.batch(stmts);
+  }
+
+  // Remove the person, their aliases, and any shares they were a recipient of.
+  await ctx.env.DB.batch([
+    ctx.env.DB.prepare('DELETE FROM task_shares WHERE user_email = ?').bind(email),
+    ctx.env.DB.prepare('DELETE FROM user_aliases WHERE user_email = ?').bind(email),
+    ctx.env.DB.prepare('DELETE FROM users WHERE email = ?').bind(email),
+  ]);
+
+  return json({ ok: true, wiped: wipe });
 };

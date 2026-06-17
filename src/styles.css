@@ -441,6 +441,35 @@ body {
 .alias-del { background: none; border: none; color: #4338ca; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
 .alias-del:hover { color: #dc2626; }
 .alias-input { width: auto; flex: 1; min-width: 150px; font-size: 12px; padding: 4px 8px; }
+
+/* ─── Settings as a full page (menu + Team subpage) ─── */
+.settings-page-overlay {
+  position: fixed; inset: 0; background: #f5f5f4; z-index: 50; overflow-y: auto;
+  animation: overlay-fade 0.15s ease;
+}
+.settings-page { max-width: 860px; margin: 0 auto; padding: 24px 24px 60px; }
+.settings-page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.settings-page-title { font-size: 18px; font-weight: 700; }
+.back-btn { background: none; border: none; color: #4f46e5; cursor: pointer; font-size: 14px; padding: 6px 8px; }
+.back-btn:hover { color: #4338ca; }
+.header-spacer { width: 64px; }
+.center { text-align: center; margin-bottom: 16px; }
+
+.settings-card { background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+.settings-card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #78716c; margin-bottom: 12px; }
+.settings-card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.card-help { font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
+
+.member-card { border: 1px solid #e7e5e4; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: #fafaf9; }
+.member-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.member-name { font-size: 14px; }
+.badge-admin { display: inline-block; background: #1c1917; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 8px; letter-spacing: 0.5px; }
+.badge-you { display: inline-block; background: #eef2ff; color: #4338ca; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px; letter-spacing: 0.5px; }
+.member-aliases { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.alias-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.alias-text { color: #57534e; font-size: 13px; }
+.alias-add { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.alias-add .text-input { flex: 1; }
 .settings-row-sub { font-size: 12px; color: #a8a29e; }
 .settings-row-actions { display: flex; gap: 12px; flex-shrink: 0; }
 

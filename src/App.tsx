@@ -46,9 +46,10 @@ export default function App() {
     const u = await api.updateUser(email, data);
     setUsers((prev) => prev.map((x) => (x.email === email ? u : x)));
   };
-  const handleDeleteUser = async (email: string) => {
-    await api.deleteUser(email);
+  const handleDeleteUser = async (email: string, wipe = false) => {
+    await api.deleteUser(email, wipe);
     setUsers((prev) => prev.filter((x) => x.email !== email));
+    if (wipe) await loadTasks();
   };
   const handleAddAlias = async (email: string, alias: string) => {
     const res = await api.addUserAlias(email, alias);
