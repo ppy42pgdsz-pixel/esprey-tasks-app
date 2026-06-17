@@ -3,6 +3,22 @@ import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment, 
 import { api } from '../api';
 import PeoplePicker from './PeoplePicker';
 
+/**
+ * Split pasted text into individual subtask strings. Handles newline-separated
+ * lists, inline numbered lists ("1) … 2) …" or "1. … 2. …"), and bullets.
+ */
+function splitIntoItems(raw: string): string[] {
+  const text = raw.trim();
+  if (!text) return [];
+  const withBreaks = text
+    .replace(/(?:^|\s)\d+[.)]\s+/g, '\n') // numbered markers (inline or line-start)
+    .replace(/(?:^|\s)[•·]\s+/g, '\n'); // bullet markers
+  return withBreaks
+    .split(/\n+/)
+    .map((s) => s.replace(/^[-*•·\s]+/, '').trim()) // strip leading dash/bullet
+    .filter((s) => s.length > 0);
+}
+
 interface Props {
   task: Task;
   companies: Company[];
@@ -45,11 +61,14 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
   };
 
   const addSubtask = async () => {
-    const text = newSubtask.trim();
-    if (!text) return;
-    const created = await api.createSubtask(task.id, text);
+    const items = splitIntoItems(newSubtask);
+    if (items.length === 0) return;
+    const created: Subtask[] = [];
+    for (const text of items) {
+      created.push(await api.createSubtask(task.id, text)); // sequential keeps order/position
+    }
     setNewSubtask('');
-    commitSubtasks([...subtasks, created]);
+    commitSubtasks([...subtasks, ...created]);
   };
 
   const deleteSubtask = async (id: string) => {
@@ -201,15 +220,17 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
             ))}
           </ul>
         )}
-        <div className="inline-add mt">
-          <input
-            className="text-input"
-            placeholder="Add a subtask"
+        <div className="subtask-add mt">
+          <textarea
+            className="textarea"
+            rows={3}
+            placeholder="Add a subtask — or paste a list (new lines, or 1) 2) 3) split into separate subtasks)"
             value={newSubtask}
             onChange={(e) => setNewSubtask(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addSubtask()}
           />
-          <button className="btn-primary sm" onClick={addSubtask} disabled={!newSubtask.trim()}>Add</button>
+          <button className="btn-primary sm" onClick={addSubtask} disabled={!newSubtask.trim()}>
+            Add
+          </button>
         </div>
       </div>
 

@@ -520,6 +520,9 @@ body {
   flex-shrink: 0;
 }
 .subtask-del:hover { color: #dc2626; }
+.subtask-add { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.subtask-add .textarea { width: 100%; }
+.subtask-add .btn-primary.sm { margin-top: 0; }
 
 /* ─── Responsive ─── */
 @media (max-width: 700px) {
