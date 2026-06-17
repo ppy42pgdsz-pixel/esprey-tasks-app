@@ -286,6 +286,23 @@ export default function App() {
       )}
 
       <main className="main">
+        {!loading && !error && (
+          <div className="stats-row">
+            <div className="stat-card">
+              <div className="stat-number">{counts.all}</div>
+              <div className="stat-label">tasks</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number">{counts.todo}</div>
+              <div className="stat-label">to do</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number">{companies.length}</div>
+              <div className="stat-label">companies</div>
+            </div>
+          </div>
+        )}
+
         {showAddForm && (
           <AddTaskForm
             companies={companies}
@@ -335,37 +352,42 @@ export default function App() {
         ) : error ? (
           <div className="state-message error">{error}</div>
         ) : tasks.length === 0 ? (
-          <div className="state-message muted">
-            {filterStatus === 'all' && !filterCompany && !filterContact
-              ? 'No tasks yet. Add one above or forward an email to tasks@esprey.net'
-              : 'No tasks match the current filters.'}
+          <div className="state-card">
+            <div className="state-message muted">
+              {filterStatus === 'all' && !filterCompany && !filterContact
+                ? 'No tasks yet. Add one above or forward an email to tasks@esprey.net'
+                : 'No tasks match the current filters.'}
+            </div>
           </div>
         ) : (
-          <div className="layout">
-            <TaskList
-              tasks={tasks}
-              selected={selectedTask}
-              onSelect={setSelectedTask}
-              onStatusChange={handleStatusChange}
-              onDelete={handleDelete}
-              selectMode={selectMode}
-              selectedIds={selectedIds}
-              onToggleSelect={toggleSelect}
-            />
-            {selectedTask && (
-              <TaskDetail
-                key={selectedTask.id}
-                task={selectedTask}
-                companies={companies}
-                contacts={contacts}
-                onClose={() => setSelectedTask(null)}
-                onUpdate={handleTaskUpdate}
-                onDelete={handleDelete}
-              />
-            )}
-          </div>
+          <TaskList
+            tasks={tasks}
+            selected={selectedTask}
+            onSelect={setSelectedTask}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDelete}
+            selectMode={selectMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+          />
         )}
       </main>
+
+      {selectedTask && !selectMode && (
+        <div className="detail-overlay" onClick={() => setSelectedTask(null)}>
+          <div className="detail-slideover" onClick={(e) => e.stopPropagation()}>
+            <TaskDetail
+              key={selectedTask.id}
+              task={selectedTask}
+              companies={companies}
+              contacts={contacts}
+              onClose={() => setSelectedTask(null)}
+              onUpdate={handleTaskUpdate}
+              onDelete={handleDelete}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

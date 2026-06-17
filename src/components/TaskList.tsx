@@ -1,15 +1,27 @@
 import type { Task, TaskStatus } from '../types';
 
 const PRIORITY_COLORS: Record<string, string> = {
-  high: '#ef4444',
-  normal: '#64748b',
-  low: '#94a3b8',
+  high: '#dc2626',
+  normal: '#a8a29e',
+  low: '#d6d3d1',
 };
 
-const STATUS_NEXT: Record<TaskStatus, TaskStatus | null> = {
+const PRIORITY_LABEL: Record<string, string> = {
+  high: 'High',
+  normal: 'Normal',
+  low: 'Low',
+};
+
+const STATUS_NEXT: Record<TaskStatus, TaskStatus> = {
   todo: 'in_progress',
   in_progress: 'done',
-  done: null,
+  done: 'todo',
+};
+
+const STATUS_LABEL: Record<TaskStatus, string> = {
+  todo: 'To Do',
+  in_progress: 'In Progress',
+  done: 'Done',
 };
 
 function formatDate(ms: number) {
@@ -32,76 +44,99 @@ export default function TaskList({
   selected,
   onSelect,
   onStatusChange,
-  onDelete,
   selectMode,
   selectedIds,
   onToggleSelect,
 }: Props) {
   return (
-    <ul className="task-list">
-      {tasks.map((task) => {
-        const nextStatus = STATUS_NEXT[task.status];
-        const checked = selectedIds.has(task.id);
-        return (
-          <li
-            key={task.id}
-            className={`task-item ${!selectMode && selected?.id === task.id ? 'selected' : ''} ${task.status === 'done' ? 'done' : ''} ${selectMode && checked ? 'checked' : ''}`}
-            onClick={() => (selectMode ? onToggleSelect(task.id) : onSelect(task))}
-          >
-            <div className="task-item-left">
-              {selectMode ? (
-                <input
-                  type="checkbox"
-                  className="select-checkbox"
-                  checked={checked}
-                  onChange={() => onToggleSelect(task.id)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : nextStatus ? (
-                <button
-                  className="check-btn"
-                  title={`Mark as ${nextStatus}`}
-                  onClick={(e) => { e.stopPropagation(); onStatusChange(task, nextStatus); }}
-                >
-                  {task.status === 'todo' ? '○' : '◑'}
-                </button>
-              ) : (
-                <button
-                  className="check-btn done-btn"
-                  title="Mark as todo"
-                  onClick={(e) => { e.stopPropagation(); onStatusChange(task, 'todo'); }}
-                >
-                  ●
-                </button>
+    <table className="task-table">
+      <thead>
+        <tr>
+          {selectMode && <th className="col-check"></th>}
+          <th>Status</th>
+          <th>Title</th>
+          <th>Company</th>
+          <th>Contact</th>
+          <th>Priority</th>
+          <th>Date</th>
+          {!selectMode && <th className="col-actions"></th>}
+        </tr>
+      </thead>
+      <tbody>
+        {tasks.map((task) => {
+          const checked = selectedIds.has(task.id);
+          const rowClass = [
+            task.status === 'done' ? 'done' : '',
+            !selectMode && selected?.id === task.id ? 'selected-row' : '',
+            selectMode && checked ? 'checked' : '',
+          ].filter(Boolean).join(' ');
+
+          return (
+            <tr
+              key={task.id}
+              className={rowClass}
+              onClick={() => (selectMode ? onToggleSelect(task.id) : onSelect(task))}
+            >
+              {selectMode && (
+                <td className="col-check">
+                  <input
+                    type="checkbox"
+                    className="select-checkbox"
+                    checked={checked}
+                    onChange={() => onToggleSelect(task.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </td>
               )}
-            </div>
-            <div className="task-item-body">
-              <div className="task-title">{task.title}</div>
-              <div className="task-meta">
+
+              <td>
                 <span
-                  className="priority-dot"
-                  style={{ color: PRIORITY_COLORS[task.priority] }}
-                  title={task.priority}
-                >●</span>
-                {task.company_name && <span className="tag">{task.company_name}</span>}
-                {task.contact_name && <span className="muted">{task.contact_name}</span>}
-                {task.source === 'email' && <span className="tag">email</span>}
-                {task.due_date && <span className="muted">{formatDate(task.due_date)}</span>}
-                <span className="muted">{formatDate(task.created_at)}</span>
-              </div>
-            </div>
-            {!selectMode && (
-              <button
-                className="delete-btn"
-                title="Delete"
-                onClick={(e) => { e.stopPropagation(); onDelete(task); }}
-              >
-                ×
-              </button>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+                  className={`status-pill ${task.status} ${selectMode ? 'static' : ''}`}
+                  title={selectMode ? undefined : `Mark as ${STATUS_LABEL[STATUS_NEXT[task.status]]}`}
+                  onClick={(e) => {
+                    if (selectMode) return;
+                    e.stopPropagation();
+                    onStatusChange(task, STATUS_NEXT[task.status]);
+                  }}
+                >
+                  {STATUS_LABEL[task.status]}
+                </span>
+              </td>
+
+              <td>
+                <div className="cell-title-row">
+                  <span className="cell-title">{task.title}</span>
+                  {task.source === 'email' && <span className="tag">email</span>}
+                </div>
+              </td>
+
+              <td>{task.company_name ? <span className="tag">{task.company_name}</span> : <span className="cell-muted">—</span>}</td>
+
+              <td>{task.contact_name ? task.contact_name : <span className="cell-muted">—</span>}</td>
+
+              <td>
+                <span className="priority-cell">
+                  <span className="priority-dot" style={{ color: PRIORITY_COLORS[task.priority] }}>●</span>
+                  {PRIORITY_LABEL[task.priority]}
+                </span>
+              </td>
+
+              <td className="cell-muted">{formatDate(task.created_at)}</td>
+
+              {!selectMode && (
+                <td className="col-actions">
+                  <button
+                    className="row-open"
+                    onClick={(e) => { e.stopPropagation(); onSelect(task); }}
+                  >
+                    Open
+                  </button>
+                </td>
+              )}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
