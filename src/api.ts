@@ -39,8 +39,16 @@ export const api = {
   listCompanies: () => request<Company[]>('/api/companies'),
   createCompany: (name: string) =>
     request<Company>('/api/companies', { method: 'POST', body: JSON.stringify({ name }) }),
+  updateCompany: (id: string, name: string) =>
+    request<Company>(`/api/companies/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteCompany: (id: string) =>
+    request<{ ok: boolean }>(`/api/companies/${id}`, { method: 'DELETE' }),
 
   listContacts: () => request<Contact[]>('/api/contacts'),
   createContact: (data: { name: string; email?: string; company_id?: string; is_favourite?: boolean }) =>
     request<Contact>('/api/contacts', { method: 'POST', body: JSON.stringify(data) }),
+  updateContact: (id: string, data: { name?: string; email?: string | null; company_id?: string | null; is_favourite?: boolean }) =>
+    request<Contact>(`/api/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteContact: (id: string) =>
+    request<{ ok: boolean }>(`/api/contacts/${id}`, { method: 'DELETE' }),
 };

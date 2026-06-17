@@ -4,7 +4,11 @@ import type { Task, TaskStatus, TaskPriority, Company, Contact } from './types';
 import TaskList from './components/TaskList';
 import TaskDetail from './components/TaskDetail';
 import AddTaskForm from './components/AddTaskForm';
+import SettingsPanel from './components/SettingsPanel';
 import './styles.css';
+
+const sortContacts = (list: Contact[]) =>
+  [...list].sort((a, b) => b.is_favourite - a.is_favourite || a.name.localeCompare(b.name));
 
 type FilterStatus = 'all' | TaskStatus;
 
@@ -19,6 +23,7 @@ export default function App() {
   const [filterContact, setFilterContact] = useState<string>('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Load companies and contacts once
   useEffect(() => {
@@ -86,8 +91,46 @@ export default function App() {
 
   const handleNewContact = async (data: { name: string; is_favourite?: boolean }) => {
     const contact = await api.createContact(data);
-    setContacts((prev) => [...prev, contact].sort((a, b) => b.is_favourite - a.is_favourite || a.name.localeCompare(b.name)));
+    setContacts((prev) => sortContacts([...prev, contact]));
     return contact;
+  };
+
+  // ─── Settings: company management ───
+  const handleRenameCompany = async (id: string, name: string) => {
+    const updated = await api.updateCompany(id, name);
+    setCompanies((prev) => prev.map((c) => (c.id === id ? updated : c)).sort((a, b) => a.name.localeCompare(b.name)));
+    await loadTasks(); // tasks store a denormalized company_name that just changed
+  };
+
+  const handleDeleteCompany = async (id: string) => {
+    await api.deleteCompany(id);
+    setCompanies((prev) => prev.filter((c) => c.id !== id));
+    setContacts((prev) => prev.map((c) => (c.company_id === id ? { ...c, company_id: null } : c)));
+    if (filterCompany === id) setFilterCompany('');
+    await loadTasks(); // tasks were unassigned from this company
+  };
+
+  // ─── Settings: contact management ───
+  const handleCreateContact = async (data: { name: string; email?: string; company_id?: string; is_favourite?: boolean }) => {
+    const contact = await api.createContact(data);
+    setContacts((prev) => sortContacts([...prev, contact]));
+    return contact;
+  };
+
+  const handleUpdateContact = async (
+    id: string,
+    data: { name?: string; email?: string | null; company_id?: string | null; is_favourite?: boolean },
+  ) => {
+    const updated = await api.updateContact(id, data);
+    setContacts((prev) => sortContacts(prev.map((c) => (c.id === id ? updated : c))));
+    if ('name' in data) await loadTasks(); // denormalized contact_name changed
+  };
+
+  const handleDeleteContact = async (id: string) => {
+    await api.deleteContact(id);
+    setContacts((prev) => prev.filter((c) => c.id !== id));
+    if (filterContact === id) setFilterContact('');
+    await loadTasks(); // tasks were unassigned from this contact
   };
 
   const counts = {
@@ -105,9 +148,14 @@ export default function App() {
       <header className="header">
         <div className="header-content">
           <h1 className="logo">Tasks</h1>
-          <button className="btn-primary" onClick={() => setShowAddForm(true)}>
-            + Add Task
-          </button>
+          <div className="header-actions">
+            <button className="btn-secondary" onClick={() => setShowSettings(true)}>
+              Settings
+            </button>
+            <button className="btn-primary" onClick={() => setShowAddForm(true)}>
+              + Add Task
+            </button>
+          </div>
         </div>
 
         <div className="filter-bar">
@@ -166,6 +214,20 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {showSettings && (
+        <SettingsPanel
+          companies={companies}
+          contacts={contacts}
+          onClose={() => setShowSettings(false)}
+          onCreateCompany={handleNewCompany}
+          onRenameCompany={handleRenameCompany}
+          onDeleteCompany={handleDeleteCompany}
+          onCreateContact={handleCreateContact}
+          onUpdateContact={handleUpdateContact}
+          onDeleteContact={handleDeleteContact}
+        />
+      )}
 
       <main className="main">
         {showAddForm && (
