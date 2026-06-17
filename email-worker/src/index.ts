@@ -35,12 +35,18 @@ Email subject: ${subject}
 Email body:
 ${body.slice(0, 3000)}
 
-Extract a task from this email. Return ONLY valid JSON with these fields:
+Extract a task from this email. Return ONLY a single JSON object, nothing before or after it, with these fields:
 {
   "title": "Short, action-oriented task title (max 100 chars)",
-  "description": "Brief summary of what needs to be done or followed up on (max 500 chars)",
+  "description": "Brief summary of what needs to be done or followed up on (max 300 chars)",
   "priority": "low|normal|high"
 }
+
+Formatting rules (important):
+- Output ONLY the JSON object — no markdown, no code fences, no commentary.
+- Keep every value on a single line. Do NOT put line breaks inside any string.
+- Keep the description under 300 characters so the JSON is never truncated.
+- Use straight quotes and escape any quotes that appear inside a value.
 
 Priority guide:
 - high: urgent, time-sensitive, or explicitly marked as important
@@ -56,7 +62,7 @@ Priority guide:
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
+      max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
     }),
   });
@@ -67,10 +73,34 @@ Priority guide:
 
   const result = await response.json<{ content: Array<{ type: string; text: string }> }>();
   const text = result.content.find((c) => c.type === 'text')?.text ?? '{}';
+  return parseTaskJson(text);
+}
 
-  // Strip markdown code fences if Claude wrapped the JSON
-  const cleaned = text.replace(/```(?:json)?\n?/g, '').replace(/```/g, '').trim();
-  return JSON.parse(cleaned) as ParsedTask;
+/**
+ * Tolerant parser for Claude's JSON reply. Strips markdown fences and any prose
+ * around the object, extracts the outermost {...}, then validates/normalises the
+ * fields. Throws if no usable JSON is found, so the caller can fall back.
+ */
+function parseTaskJson(text: string): ParsedTask {
+  let cleaned = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+
+  // Isolate the outermost JSON object in case the model added stray text.
+  const first = cleaned.indexOf('{');
+  const last = cleaned.lastIndexOf('}');
+  if (first !== -1 && last > first) {
+    cleaned = cleaned.slice(first, last + 1);
+  }
+
+  const obj = JSON.parse(cleaned) as Partial<ParsedTask>;
+
+  const priority: ParsedTask['priority'] =
+    obj.priority === 'low' || obj.priority === 'high' ? obj.priority : 'normal';
+
+  return {
+    title: String(obj.title ?? '').trim().slice(0, 100),
+    description: String(obj.description ?? '').trim().slice(0, 500),
+    priority,
+  };
 }
 
 function nanoid(): string {
