@@ -254,6 +254,7 @@ export default function App() {
             />
             {selectedTask && (
               <TaskDetail
+                key={selectedTask.id}
                 task={selectedTask}
                 companies={companies}
                 contacts={contacts}

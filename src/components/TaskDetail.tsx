@@ -147,7 +147,13 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
       <div className="detail-section">
         <div className="section-label-row">
           <span className="section-label">Notes</span>
-          <button className="link-btn" onClick={() => setEditingDesc(!editingDesc)}>
+          <button
+            className="link-btn"
+            onClick={() => {
+              if (!editingDesc) setDescText(task.description);
+              setEditingDesc(!editingDesc);
+            }}
+          >
             {editingDesc ? 'cancel' : 'edit'}
           </button>
         </div>
