@@ -73,4 +73,8 @@ export const api = {
     request<User>(`/api/users/${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteUser: (email: string) =>
     request<{ ok: boolean }>(`/api/users/${encodeURIComponent(email)}`, { method: 'DELETE' }),
+  addUserAlias: (email: string, alias: string) =>
+    request<{ ok: boolean; alias: string }>(`/api/users/${encodeURIComponent(email)}/aliases`, { method: 'POST', body: JSON.stringify({ alias }) }),
+  removeUserAlias: (email: string, alias: string) =>
+    request<{ ok: boolean }>(`/api/users/${encodeURIComponent(email)}/aliases?alias=${encodeURIComponent(alias)}`, { method: 'DELETE' }),
 };

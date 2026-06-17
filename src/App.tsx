@@ -50,6 +50,18 @@ export default function App() {
     await api.deleteUser(email);
     setUsers((prev) => prev.filter((x) => x.email !== email));
   };
+  const handleAddAlias = async (email: string, alias: string) => {
+    const res = await api.addUserAlias(email, alias);
+    setUsers((prev) => prev.map((u) => (u.email === email
+      ? { ...u, aliases: Array.from(new Set([...(u.aliases ?? []), res.alias])) }
+      : u)));
+  };
+  const handleRemoveAlias = async (email: string, alias: string) => {
+    await api.removeUserAlias(email, alias);
+    setUsers((prev) => prev.map((u) => (u.email === email
+      ? { ...u, aliases: (u.aliases ?? []).filter((a) => a !== alias) }
+      : u)));
+  };
 
   // Load by company/contact only; status is filtered client-side so the stat
   // cards always show accurate counts for every status.
@@ -243,6 +255,8 @@ export default function App() {
           onCreateUser={handleCreateUser}
           onUpdateUser={handleUpdateUser}
           onDeleteUser={handleDeleteUser}
+          onAddAlias={handleAddAlias}
+          onRemoveAlias={handleRemoveAlias}
           onCreateCompany={handleNewCompany}
           onRenameCompany={handleRenameCompany}
           onDeleteCompany={handleDeleteCompany}

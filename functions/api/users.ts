@@ -93,10 +93,19 @@ async function isAdmin(ctx: EventContext<Env, string, Record<string, unknown>>):
 }
 
 export const onRequestGet: PagesFunction<Env> = async (ctx) => {
-  const { results } = await ctx.env.DB.prepare(
+  const { results: users } = await ctx.env.DB.prepare(
     'SELECT email, name, role, created_at FROM users ORDER BY name ASC',
-  ).all();
-  return json(results);
+  ).all<{ email: string; name: string; role: string; created_at: number }>();
+  const { results: aliases } = await ctx.env.DB.prepare(
+    'SELECT alias_email, user_email FROM user_aliases',
+  ).all<{ alias_email: string; user_email: string }>();
+  const withAliases = users.map((u) => ({
+    ...u,
+    aliases: aliases
+      .filter((a) => a.user_email.toLowerCase() === u.email.toLowerCase())
+      .map((a) => a.alias_email),
+  }));
+  return json(withAliases);
 };
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {

@@ -33,6 +33,7 @@ export interface User {
   name: string;
   role: UserRole;
   created_at: number;
+  aliases?: string[];
 }
 
 export interface Subtask {

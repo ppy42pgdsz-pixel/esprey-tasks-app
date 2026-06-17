@@ -16,6 +16,8 @@ interface Props {
   onCreateUser: (data: { name: string; email: string; role: UserRole }) => Promise<void>;
   onUpdateUser: (email: string, data: { name?: string; role?: UserRole }) => Promise<void>;
   onDeleteUser: (email: string) => Promise<void>;
+  onAddAlias: (email: string, alias: string) => Promise<void>;
+  onRemoveAlias: (email: string, alias: string) => Promise<void>;
 }
 
 interface ContactDraft {
@@ -39,11 +41,14 @@ export default function SettingsPanel({
   onCreateUser,
   onUpdateUser,
   onDeleteUser,
+  onAddAlias,
+  onRemoveAlias,
 }: Props) {
   const isAdmin = me?.role === 'admin';
 
   // ─── Team ───
   const [newUser, setNewUser] = useState<{ name: string; email: string; role: UserRole }>({ name: '', email: '', role: 'member' });
+  const [aliasInput, setAliasInput] = useState<Record<string, string>>({});
   // ─── Companies ───
   const [newCompany, setNewCompany] = useState('');
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
@@ -154,6 +159,14 @@ export default function SettingsPanel({
       await onDeleteUser(u.email);
     });
 
+  const submitAlias = (email: string) =>
+    run(async () => {
+      const v = (aliasInput[email] ?? '').trim();
+      if (!v) return;
+      await onAddAlias(email, v);
+      setAliasInput((prev) => ({ ...prev, [email]: '' }));
+    });
+
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
@@ -196,16 +209,36 @@ export default function SettingsPanel({
             ) : (
               <ul className="settings-list">
                 {users.map((u) => (
-                  <li key={u.email} className="settings-row">
-                    <div className="settings-row-name">
-                      <span>{u.name}</span>
-                      <span className="settings-row-sub">{u.email} · {u.role}</span>
+                  <li key={u.email} className="settings-row settings-row-col">
+                    <div className="settings-row-top">
+                      <div className="settings-row-name">
+                        <span>{u.name}</span>
+                        <span className="settings-row-sub">{u.email} · {u.role}</span>
+                      </div>
+                      <div className="settings-row-actions">
+                        <button className="link-btn" onClick={() => toggleRole(u)} disabled={busy}>
+                          {u.role === 'admin' ? 'Make member' : 'Make admin'}
+                        </button>
+                        <button className="link-btn danger" onClick={() => removeUser(u)} disabled={busy}>Remove</button>
+                      </div>
                     </div>
-                    <div className="settings-row-actions">
-                      <button className="link-btn" onClick={() => toggleRole(u)} disabled={busy}>
-                        {u.role === 'admin' ? 'Make member' : 'Make admin'}
-                      </button>
-                      <button className="link-btn danger" onClick={() => removeUser(u)} disabled={busy}>Remove</button>
+                    <div className="alias-row">
+                      <span className="alias-label">Other emails:</span>
+                      {(u.aliases ?? []).length === 0 && <span className="muted">none</span>}
+                      {(u.aliases ?? []).map((a) => (
+                        <span key={a} className="alias-chip">
+                          {a}
+                          <button className="alias-del" onClick={() => onRemoveAlias(u.email, a)} aria-label="Remove alias">×</button>
+                        </span>
+                      ))}
+                      <input
+                        className="text-input alias-input"
+                        placeholder="add alias email"
+                        value={aliasInput[u.email] ?? ''}
+                        onChange={(e) => setAliasInput((prev) => ({ ...prev, [u.email]: e.target.value }))}
+                        onKeyDown={(e) => e.key === 'Enter' && submitAlias(u.email)}
+                      />
+                      <button className="link-btn" onClick={() => submitAlias(u.email)} disabled={busy || !(aliasInput[u.email] ?? '').trim()}>+ add</button>
                     </div>
                   </li>
                 ))}
