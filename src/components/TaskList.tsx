@@ -22,21 +22,42 @@ interface Props {
   onSelect: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   onDelete: (task: Task) => void;
+  selectMode: boolean;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
 }
 
-export default function TaskList({ tasks, selected, onSelect, onStatusChange, onDelete }: Props) {
+export default function TaskList({
+  tasks,
+  selected,
+  onSelect,
+  onStatusChange,
+  onDelete,
+  selectMode,
+  selectedIds,
+  onToggleSelect,
+}: Props) {
   return (
     <ul className="task-list">
       {tasks.map((task) => {
         const nextStatus = STATUS_NEXT[task.status];
+        const checked = selectedIds.has(task.id);
         return (
           <li
             key={task.id}
-            className={`task-item ${selected?.id === task.id ? 'selected' : ''} ${task.status === 'done' ? 'done' : ''}`}
-            onClick={() => onSelect(task)}
+            className={`task-item ${!selectMode && selected?.id === task.id ? 'selected' : ''} ${task.status === 'done' ? 'done' : ''} ${selectMode && checked ? 'checked' : ''}`}
+            onClick={() => (selectMode ? onToggleSelect(task.id) : onSelect(task))}
           >
             <div className="task-item-left">
-              {nextStatus ? (
+              {selectMode ? (
+                <input
+                  type="checkbox"
+                  className="select-checkbox"
+                  checked={checked}
+                  onChange={() => onToggleSelect(task.id)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : nextStatus ? (
                 <button
                   className="check-btn"
                   title={`Mark as ${nextStatus}`}
@@ -69,13 +90,15 @@ export default function TaskList({ tasks, selected, onSelect, onStatusChange, on
                 <span className="muted">{formatDate(task.created_at)}</span>
               </div>
             </div>
-            <button
-              className="delete-btn"
-              title="Delete"
-              onClick={(e) => { e.stopPropagation(); onDelete(task); }}
-            >
-              ×
-            </button>
+            {!selectMode && (
+              <button
+                className="delete-btn"
+                title="Delete"
+                onClick={(e) => { e.stopPropagation(); onDelete(task); }}
+              >
+                ×
+              </button>
+            )}
           </li>
         );
       })}

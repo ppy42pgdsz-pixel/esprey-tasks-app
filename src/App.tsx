@@ -24,6 +24,9 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Load companies and contacts once
   useEffect(() => {
@@ -127,6 +130,59 @@ export default function App() {
     await loadTasks(); // tasks were unassigned from this contact
   };
 
+  // ─── Refresh ───
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadTasks();
+    setRefreshing(false);
+  };
+
+  // ─── Multi-select bulk edit ───
+  const enterSelectMode = () => {
+    setSelectedTask(null);
+    setSelectedIds(new Set());
+    setSelectMode(true);
+  };
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const allSelected = tasks.length > 0 && tasks.every((t) => selectedIds.has(t.id));
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(tasks.map((t) => t.id)));
+  };
+
+  const applyBulk = async (fn: (id: string) => Promise<unknown>) => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    try {
+      await Promise.all(ids.map(fn));
+      await loadTasks();
+      setSelectedIds(new Set());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Bulk action failed');
+    }
+  };
+  const handleBulkStatus = (status: TaskStatus) => applyBulk((id) => api.updateTask(id, { status }));
+  const handleBulkCompany = (value: string) => {
+    const companyId = value === '__none__' ? '' : value;
+    const company = companies.find((c) => c.id === companyId);
+    return applyBulk((id) => api.updateTask(id, { company_id: companyId || null, company_name: company?.name ?? null }));
+  };
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} task(s)? This cannot be undone.`)) return;
+    await applyBulk((id) => api.deleteTask(id));
+  };
+
   const counts = {
     all: tasks.length,
     todo: tasks.filter((t) => t.status === 'todo').length,
@@ -143,6 +199,12 @@ export default function App() {
         <div className="header-content">
           <h1 className="logo">Tasks</h1>
           <div className="header-actions">
+            <button className="btn-secondary" onClick={handleRefresh} disabled={refreshing} title="Reload tasks">
+              {refreshing ? 'Refreshing…' : '↻ Refresh'}
+            </button>
+            <button className="btn-secondary" onClick={selectMode ? exitSelectMode : enterSelectMode}>
+              {selectMode ? 'Done' : 'Select'}
+            </button>
             <button className="btn-secondary" onClick={() => setShowSettings(true)}>
               Settings
             </button>
@@ -233,6 +295,41 @@ export default function App() {
           />
         )}
 
+        {selectMode && (
+          <div className="bulk-bar">
+            <label className="checkbox-label">
+              <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
+              {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+            </label>
+            <select
+              className="select-input bulk-select"
+              value=""
+              disabled={selectedIds.size === 0}
+              onChange={(e) => e.target.value && handleBulkStatus(e.target.value as TaskStatus)}
+            >
+              <option value="">Set status…</option>
+              <option value="todo">To Do</option>
+              <option value="in_progress">In Progress</option>
+              <option value="done">Done</option>
+            </select>
+            <select
+              className="select-input bulk-select"
+              value=""
+              disabled={selectedIds.size === 0}
+              onChange={(e) => e.target.value && handleBulkCompany(e.target.value)}
+            >
+              <option value="">Set company…</option>
+              <option value="__none__">No company</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button className="btn-danger" disabled={selectedIds.size === 0} onClick={handleBulkDelete}>
+              Delete
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div className="state-message">Loading…</div>
         ) : error ? (
@@ -251,6 +348,9 @@ export default function App() {
               onSelect={setSelectedTask}
               onStatusChange={handleStatusChange}
               onDelete={handleDelete}
+              selectMode={selectMode}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
             />
             {selectedTask && (
               <TaskDetail

@@ -27,7 +27,7 @@ export const api = {
   createTask: (data: { title: string; description?: string; priority?: TaskPriority; due_date?: number }) =>
     request<Task>('/api/tasks', { method: 'POST', body: JSON.stringify(data) }),
 
-  updateTask: (id: string, data: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'due_date' | 'draft_reply'>>) =>
+  updateTask: (id: string, data: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'due_date' | 'draft_reply' | 'company_id' | 'company_name' | 'contact_id' | 'contact_name'>>) =>
     request<Task>(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   deleteTask: (id: string) =>
