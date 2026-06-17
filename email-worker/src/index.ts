@@ -3,135 +3,117 @@
  *
  * Triggered when an email arrives at tasks@esprey.net.
  * 1. Parses the raw MIME message with postal-mime
- * 2. Sends the email to Claude to extract a structured task
- * 3. Inserts the task into the D1 database
+ * 2. Extracts attachments (images / PDFs / attached .eml emails)
+ * 3. Sends the body + visual attachments to Claude to build a structured task
+ * 4. Stores the original attachments in R2 and records them in task_attachments
  *
  * Auto-deploy: connected to GitHub via Cloudflare Workers Builds (root: email-worker).
  */
 
 import PostalMime from 'postal-mime';
+import { extractTask, type AiAttachment, type ParsedTask } from './anthropic';
+import { toUint8, uint8ToBase64, extFromMime, nanoid, r2KeyForAttachment } from './util';
 
 interface Env {
   DB: D1Database;
+  ATTACHMENTS: R2Bucket;
   ANTHROPIC_API_KEY: string;
   ADMIN_EMAIL: string;
   ADMIN_NAME: string;
 }
 
-interface ParsedTask {
-  title: string;
-  description: string;
-  priority: 'low' | 'normal' | 'high';
-}
+const AI_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-async function extractTask(
-  subject: string,
-  body: string,
-  apiKey: string
-): Promise<ParsedTask> {
-  const prompt = `You are parsing a forwarded email into a structured task for a personal task management system.
-
-Email subject: ${subject}
-Email body:
-${body.slice(0, 3000)}
-
-Extract a task from this email. Return ONLY a single JSON object, nothing before or after it, with these fields:
-{
-  "title": "Short, action-oriented task title (max 100 chars)",
-  "description": "Brief summary of what needs to be done or followed up on (max 300 chars)",
-  "priority": "low|normal|high"
-}
-
-Formatting rules (important):
-- Output ONLY the JSON object — no markdown, no code fences, no commentary.
-- Keep every value on a single line. Do NOT put line breaks inside any string.
-- Keep the description under 300 characters so the JSON is never truncated.
-- Use straight quotes and escape any quotes that appear inside a value.
-
-Priority guide:
-- high: urgent, time-sensitive, or explicitly marked as important
-- normal: standard follow-up or action required
-- low: FYI, informational, or no clear deadline`;
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Claude API error: ${response.status}`);
-  }
-
-  const result = await response.json<{ content: Array<{ type: string; text: string }> }>();
-  const text = result.content.find((c) => c.type === 'text')?.text ?? '{}';
-  return parseTaskJson(text);
-}
-
-/**
- * Tolerant parser for Claude's JSON reply. Strips markdown fences and any prose
- * around the object, extracts the outermost {...}, then validates/normalises the
- * fields. Throws if no usable JSON is found, so the caller can fall back.
- */
-function parseTaskJson(text: string): ParsedTask {
-  let cleaned = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-
-  // Isolate the outermost JSON object in case the model added stray text.
-  const first = cleaned.indexOf('{');
-  const last = cleaned.lastIndexOf('}');
-  if (first !== -1 && last > first) {
-    cleaned = cleaned.slice(first, last + 1);
-  }
-
-  const obj = JSON.parse(cleaned) as Partial<ParsedTask>;
-
-  const priority: ParsedTask['priority'] =
-    obj.priority === 'low' || obj.priority === 'high' ? obj.priority : 'normal';
-
-  return {
-    title: String(obj.title ?? '').trim().slice(0, 100),
-    description: String(obj.description ?? '').trim().slice(0, 500),
-    priority,
-  };
-}
-
-function nanoid(): string {
-  // Simple ID generator for the Worker environment (no npm nanoid needed)
-  return crypto.randomUUID().replace(/-/g, '').slice(0, 21);
+/** Is this attachment something we keep (real file, not an inline signature image)? */
+function isWantedAttachment(att: { mimeType?: string; filename?: string; disposition?: string; contentId?: string }): boolean {
+  const disposition = (att.disposition ?? '').toString().toLowerCase();
+  if (disposition === 'inline') return false;
+  if (att.contentId) return false;
+  const mt = (att.mimeType ?? '').toLowerCase();
+  if (mt.startsWith('image/')) return true;
+  if (mt === 'application/pdf') return true;
+  if (mt === 'message/rfc822') return true;
+  if ((att.filename ?? '').toLowerCase().endsWith('.eml')) return true;
+  return false;
 }
 
 export default {
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
-    // Parse the raw email
     const rawEmail = await new Response(message.raw).arrayBuffer();
     const parsed = await PostalMime.parse(rawEmail);
 
     const subject = parsed.subject ?? message.headers.get('subject') ?? '(no subject)';
-    const fromEmail = parsed.from?.address ?? message.from;
-    const fromName = parsed.from?.name ?? fromEmail;
+    let fromEmail = parsed.from?.address ?? message.from;
+    let fromName = parsed.from?.name ?? fromEmail;
 
-    // Use text body, fall back to stripping HTML tags
-    const body =
+    // Outer email body (prefer plain text, else strip HTML).
+    const outerBody =
       parsed.text ??
       (parsed.html ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // Extract structured task using Claude
+    // Collect attachments we care about.
+    const candidates = (parsed.attachments ?? []).filter((att) =>
+      isWantedAttachment(att as { mimeType?: string; filename?: string; disposition?: string; contentId?: string }),
+    );
+
+    const aiAttachments: AiAttachment[] = [];
+    const toStore: { id: string; bytes: Uint8Array; mime: string; filename: string; ext: string }[] = [];
+    let emlText = '';
+    let originalSender: { address?: string; name?: string } | null = null;
+
+    for (const att of candidates) {
+      const rawMime = (att.mimeType ?? 'application/octet-stream').toLowerCase();
+      const isEml = rawMime === 'message/rfc822' || (att.filename ?? '').toLowerCase().endsWith('.eml');
+      const mime = isEml ? 'message/rfc822' : rawMime;
+      const bytes = toUint8(att.content as ArrayBuffer | Uint8Array | string);
+      const ext = extFromMime(mime);
+      const id = nanoid();
+
+      toStore.push({ id, bytes, mime, filename: att.filename ?? `attachment.${ext}`, ext });
+
+      if (isEml) {
+        // Parse the attached email so the task reflects the ORIGINAL message/sender.
+        try {
+          const inner = await PostalMime.parse(bytes);
+          if (!originalSender && inner.from?.address) {
+            originalSender = { address: inner.from.address, name: inner.from.name };
+          }
+          const innerBody =
+            inner.text ?? (inner.html ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          const header = inner.from?.address
+            ? ` from ${inner.from.name ?? ''} <${inner.from.address}>`
+            : '';
+          const subj = inner.subject ? `, subject: ${inner.subject}` : '';
+          if (innerBody) emlText += `\n\n--- Attached email${header}${subj} ---\n${innerBody.slice(0, 3000)}`;
+        } catch (e) {
+          console.error('failed to parse .eml attachment:', e);
+        }
+      } else if (mime === 'application/pdf' || AI_IMAGE_TYPES.includes(mime)) {
+        aiAttachments.push({ mime, base64: uint8ToBase64(bytes) });
+      }
+      // Other types (e.g. HEIC) are stored but not sent to the model.
+    }
+
+    // If an email was attached, prefer the original sender for the task.
+    if (originalSender?.address) {
+      fromEmail = originalSender.address;
+      fromName = originalSender.name ?? originalSender.address;
+    }
+
+    const combinedBody = (outerBody + emlText).trim();
+
+    // Extract the task with Claude (fall back to subject/body on failure).
     let task: ParsedTask;
     try {
-      task = await extractTask(subject, body, env.ANTHROPIC_API_KEY);
+      task = await extractTask(env.ANTHROPIC_API_KEY, {
+        subject,
+        body: combinedBody,
+        attachments: aiAttachments,
+      });
     } catch (err) {
-      // Fallback: use subject as title
       task = {
         title: subject.slice(0, 100),
-        description: body.slice(0, 500),
+        description: combinedBody.slice(0, 500),
         priority: 'normal',
       };
       console.error('Claude extraction failed, using fallback:', err);
@@ -145,7 +127,7 @@ export default {
         id, title, description, status, priority, source,
         from_email, from_name, original_subject, original_body,
         created_at, updated_at
-      ) VALUES (?, ?, ?, 'todo', ?, 'email', ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, 'todo', ?, 'email', ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         id,
@@ -155,12 +137,35 @@ export default {
         fromEmail,
         fromName,
         subject,
-        body.slice(0, 10000), // cap stored body at 10k chars
+        combinedBody.slice(0, 10000),
         now,
-        now
+        now,
       )
       .run();
 
-    console.log(`Task created from email: id=${id} title="${task.title}" from=${fromEmail}`);
+    // Persist the original attachments to R2 + record them, isolated per-file.
+    let storedCount = 0;
+    for (const s of toStore) {
+      try {
+        const key = r2KeyForAttachment(s.id, s.ext);
+        await env.ATTACHMENTS.put(key, s.bytes, {
+          httpMetadata: { contentType: s.mime },
+          customMetadata: { taskId: id, filename: s.filename },
+        });
+        await env.DB.prepare(
+          `INSERT INTO task_attachments (id, task_id, r2_key, filename, mime_type, size, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+          .bind(s.id, id, key, s.filename, s.mime, s.bytes.length, now)
+          .run();
+        storedCount++;
+      } catch (e) {
+        console.error('failed to store attachment', s.filename, e);
+      }
+    }
+
+    console.log(
+      `Task created from email: id=${id} title="${task.title}" from=${fromEmail} attachments=${storedCount}`,
+    );
   },
 } satisfies ExportedHandler<Env>;

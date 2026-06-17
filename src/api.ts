@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TaskPriority, Company, Contact } from './types';
+import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -35,6 +35,9 @@ export const api = {
 
   generateDraftReply: (id: string) =>
     request<{ draft_reply: string }>(`/api/tasks/${id}/draft-reply`, { method: 'POST' }),
+
+  listAttachments: (taskId: string) =>
+    request<TaskAttachment[]>(`/api/tasks/${taskId}/attachments`),
 
   listCompanies: () => request<Company[]>('/api/companies'),
   createCompany: (name: string) =>

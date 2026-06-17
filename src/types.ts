@@ -37,3 +37,12 @@ export interface Contact {
   is_favourite: number; // 1 = true, 0 = false
   created_at: number;
 }
+
+export interface TaskAttachment {
+  id: string;
+  task_id: string;
+  filename: string | null;
+  mime_type: string | null;
+  size: number | null;
+  created_at: number;
+}

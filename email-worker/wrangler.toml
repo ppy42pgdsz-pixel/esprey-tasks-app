@@ -11,3 +11,7 @@ APP_DOMAIN = "tasks.esprey.net"
 binding = "DB"
 database_name = "esprey-tasks-app"
 database_id = "04508e88-feb9-435d-9740-2affcf5206df"
+
+[[r2_buckets]]
+binding = "ATTACHMENTS"
+bucket_name = "esprey-tasks-app-attachments"

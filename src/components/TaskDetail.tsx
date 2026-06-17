@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { Task, TaskStatus, TaskPriority, Company, Contact } from '../types';
+import { useState, useEffect } from 'react';
+import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment } from '../types';
 import { api } from '../api';
 import PeoplePicker from './PeoplePicker';
 
@@ -18,8 +18,13 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
   const [replyText, setReplyText] = useState(task.draft_reply ?? '');
   const [editingDesc, setEditingDesc] = useState(false);
   const [descText, setDescText] = useState(task.description);
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
 
   const selectedContact = contacts.find((c) => c.id === task.contact_id) ?? null;
+
+  useEffect(() => {
+    api.listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
+  }, [task.id]);
 
   const handleGenerateReply = async () => {
     setGeneratingReply(true);
@@ -141,6 +146,30 @@ export default function TaskDetail({ task, companies, contacts, onClose, onUpdat
               <div className="section-value muted">{task.original_subject}</div>
             </>
           )}
+        </div>
+      )}
+
+      {attachments.length > 0 && (
+        <div className="detail-section">
+          <div className="section-label">Attachments</div>
+          <div className="attachment-list">
+            {attachments.map((a) => {
+              const url = `/api/attachments/${a.id}`;
+              const mime = a.mime_type ?? '';
+              const isImage = mime.startsWith('image/');
+              const badge = mime === 'application/pdf' ? 'PDF' : mime === 'message/rfc822' ? 'EML' : 'FILE';
+              return (
+                <a key={a.id} className="attachment-item" href={url} target="_blank" rel="noopener noreferrer">
+                  {isImage ? (
+                    <img className="attachment-thumb" src={url} alt={a.filename ?? 'attachment'} />
+                  ) : (
+                    <span className="attachment-icon">{badge}</span>
+                  )}
+                  <span className="attachment-name">{a.filename ?? 'attachment'}</span>
+                </a>
+              );
+            })}
+          </div>
         </div>
       )}
 
