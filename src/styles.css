@@ -530,9 +530,9 @@ body {
   background: none;
   border: none;
   cursor: pointer;
-  color: #78716c;
-  font-size: 11px;
-  padding: 0 2px 0 0;
+  color: #57534e;
+  font-size: 18px;
+  padding: 0 8px 0 2px;
   line-height: 1;
   flex-shrink: 0;
 }
