@@ -21,6 +21,10 @@ export interface Task {
   created_at: number;
   updated_at: number;
   due_date: number | null;
+  // Ownership & sharing.
+  owner_email?: string | null;
+  owner_name?: string | null;
+  visibility?: 'private' | 'shared';
   // Present on the list endpoint (subtask progress); optional elsewhere.
   subtask_total?: number;
   subtask_done?: number;

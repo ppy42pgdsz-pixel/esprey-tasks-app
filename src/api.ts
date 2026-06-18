@@ -55,6 +55,11 @@ export const api = {
   deleteContact: (id: string) =>
     request<{ ok: boolean }>(`/api/contacts/${id}`, { method: 'DELETE' }),
 
+  getShare: (taskId: string) =>
+    request<{ owner_email: string | null; visibility: 'private' | 'shared'; user_emails: string[] }>(`/api/tasks/${taskId}/share`),
+  setShare: (taskId: string, data: { visibility: 'private' | 'shared'; user_emails: string[] }) =>
+    request<{ ok: boolean; visibility: 'private' | 'shared'; user_emails: string[] }>(`/api/tasks/${taskId}/share`, { method: 'PUT', body: JSON.stringify(data) }),
+
   listSubtasks: (taskId: string) =>
     request<Subtask[]>(`/api/tasks/${taskId}/subtasks`),
   createSubtask: (taskId: string, text: string) =>

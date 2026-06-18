@@ -38,6 +38,7 @@ interface Props {
   allSelected: boolean;
   onToggleSelectAll: () => void;
   onSubtaskProgress?: (taskId: string, total: number, done: number) => void;
+  meEmail: string;
 }
 
 export default function TaskList({
@@ -50,6 +51,7 @@ export default function TaskList({
   allSelected,
   onToggleSelectAll,
   onSubtaskProgress,
+  meEmail,
 }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -170,6 +172,12 @@ export default function TaskList({
                     )}
                     <span className="cell-title">{task.title}</span>
                     {task.source === 'email' && <span className="tag">email</span>}
+                    {task.owner_email && task.owner_email.toLowerCase() !== meEmail && (
+                      <span className="tag owner-tag">from {task.owner_name || task.owner_email}</span>
+                    )}
+                    {task.owner_email && task.owner_email.toLowerCase() === meEmail && task.visibility === 'shared' && (
+                      <span className="tag">shared</span>
+                    )}
                     {hasSubs && (
                       <span className="subtask-badge">☑ {task.subtask_done ?? 0}/{task.subtask_total}</span>
                     )}

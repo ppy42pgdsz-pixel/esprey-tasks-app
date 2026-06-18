@@ -129,6 +129,11 @@ export default function App() {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, subtask_total: total, subtask_done: done } : t)));
   };
 
+  const handleShareChange = (taskId: string, visibility: 'private' | 'shared') => {
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, visibility } : t)));
+    setSelectedTask((prev) => (prev && prev.id === taskId ? { ...prev, visibility } : prev));
+  };
+
   const handleNewCompany = async (name: string) => {
     const company = await api.createCompany(name);
     setCompanies((prev) => [...prev, company].sort((a, b) => a.name.localeCompare(b.name)));
@@ -396,6 +401,7 @@ export default function App() {
             allSelected={allSelected}
             onToggleSelectAll={toggleSelectAll}
             onSubtaskProgress={handleSubtaskProgress}
+            meEmail={(me?.email ?? '').toLowerCase()}
           />
         )}
       </main>
@@ -408,10 +414,13 @@ export default function App() {
               task={selectedTask}
               companies={companies}
               contacts={contacts}
+              me={me}
+              users={users}
               onClose={() => setSelectedTask(null)}
               onUpdate={handleTaskUpdate}
               onDelete={handleDelete}
               onSubtaskProgress={handleSubtaskProgress}
+              onShareChange={handleShareChange}
             />
           </div>
         </div>
