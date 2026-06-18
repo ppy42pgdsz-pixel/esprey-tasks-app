@@ -3,7 +3,9 @@
  * DELETE /api/companies/:id  — delete a company; fully unassigns it from tasks (clears id AND name) and from contacts, but keeps the tasks
  */
 
-interface Env { DB: D1Database }
+import { meFromCtx, isAdminEmail } from '../_lib';
+
+interface Env { DB: D1Database; ADMIN_EMAIL?: string }
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -13,6 +15,8 @@ function json(data: unknown, status = 200) {
 
 export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
+  const me = await meFromCtx(ctx.env.DB, ctx);
+  if (!(await isAdminEmail(ctx.env.DB, me, ctx.env.ADMIN_EMAIL))) return json({ error: 'Admin only' }, 403);
   const body = await ctx.request.json<{ name?: string }>();
   const name = body.name?.trim();
   if (!name) return json({ error: 'name is required' }, 400);
@@ -32,11 +36,14 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
 
 export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
+  const me = await meFromCtx(ctx.env.DB, ctx);
+  if (!(await isAdminEmail(ctx.env.DB, me, ctx.env.ADMIN_EMAIL))) return json({ error: 'Admin only' }, 403);
 
-  // Fully unassign from tasks (clear both id and name) and from contacts, then delete the company.
+  // Fully unassign from tasks (clear both id and name) and from contacts, then delete the company + its allocations.
   await ctx.env.DB.batch([
     ctx.env.DB.prepare('UPDATE tasks SET company_id = NULL, company_name = NULL WHERE company_id = ?').bind(id),
     ctx.env.DB.prepare('UPDATE contacts SET company_id = NULL WHERE company_id = ?').bind(id),
+    ctx.env.DB.prepare('DELETE FROM user_companies WHERE company_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM companies WHERE id = ?').bind(id),
   ]);
 

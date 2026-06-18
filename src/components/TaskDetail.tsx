@@ -405,11 +405,13 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
         )}
       </div>
 
-      <div className="detail-footer">
-        <button className="btn-danger" onClick={() => { if (confirm('Delete this task?')) onDelete(task); }}>
-          Delete task
-        </button>
-      </div>
+      {isOwner && (
+        <div className="detail-footer">
+          <button className="btn-danger" onClick={() => { if (confirm('Delete this task?')) onDelete(task); }}>
+            Delete task
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

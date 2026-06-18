@@ -63,6 +63,10 @@ export default function App() {
       ? { ...u, aliases: (u.aliases ?? []).filter((a) => a !== alias) }
       : u)));
   };
+  const handleSetUserCompanies = async (email: string, companyIds: string[]) => {
+    const res = await api.setUserCompanies(email, companyIds);
+    setUsers((prev) => prev.map((u) => (u.email === email ? { ...u, company_ids: res.company_ids } : u)));
+  };
 
   // Load by company/contact only; status is filtered client-side so the stat
   // cards always show accurate counts for every status.
@@ -114,6 +118,8 @@ export default function App() {
     company_name?: string;
     contact_id?: string;
     contact_name?: string;
+    visibility?: 'private' | 'shared';
+    share_emails?: string[];
   }) => {
     const task = await api.createTask(data);
     setTasks((prev) => [task, ...prev]);
@@ -263,6 +269,7 @@ export default function App() {
           onDeleteUser={handleDeleteUser}
           onAddAlias={handleAddAlias}
           onRemoveAlias={handleRemoveAlias}
+          onSetUserCompanies={handleSetUserCompanies}
           onCreateCompany={handleNewCompany}
           onRenameCompany={handleRenameCompany}
           onDeleteCompany={handleDeleteCompany}
@@ -344,6 +351,8 @@ export default function App() {
           <AddTaskForm
             companies={companies}
             contacts={contacts}
+            me={me}
+            users={users}
             onSubmit={handleAdd}
             onCancel={() => setShowAddForm(false)}
           />

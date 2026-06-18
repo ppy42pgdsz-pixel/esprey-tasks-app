@@ -38,6 +38,7 @@ export interface User {
   role: UserRole;
   created_at: number;
   aliases?: string[];
+  company_ids?: string[];
 }
 
 export interface Subtask {

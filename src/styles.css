@@ -471,6 +471,11 @@ body {
 .alias-add { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
 .alias-add .text-input { flex: 1; }
 
+/* Member company allocation */
+.member-companies { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.member-companies-note { margin-top: 8px; font-size: 12px; }
+.company-allot-list { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+
 /* Sharing */
 .owner-tag { background: #fef3c7; color: #92400e; }
 .share-people { display: flex; flex-direction: column; gap: 6px; }

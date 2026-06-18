@@ -4,6 +4,8 @@
  * Saves the draft to the task and returns it.
  */
 
+import { meFromCtx, isTaskOwner } from '../../_lib';
+
 interface Env {
   DB: D1Database;
   ANTHROPIC_API_KEY: string;
@@ -30,6 +32,8 @@ function json(data: unknown, status = 200) {
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
+  const me = await meFromCtx(ctx.env.DB, ctx);
+  if (!(await isTaskOwner(ctx.env.DB, id, me))) return json({ error: 'Only the owner can do this' }, 403);
   const task = await ctx.env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(id).first<Task>();
 
   if (!task) return json({ error: 'Not found' }, 404);

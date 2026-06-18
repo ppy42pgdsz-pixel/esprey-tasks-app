@@ -3,6 +3,8 @@
  * DELETE /api/subtasks/:id — delete a subtask
  */
 
+import { meFromCtx, isTaskOwner } from '../_lib';
+
 interface Env { DB: D1Database }
 
 function json(data: unknown, status = 200) {
@@ -13,8 +15,17 @@ function json(data: unknown, status = 200) {
 
 type SubStatus = 'todo' | 'in_progress' | 'done';
 
+// Only the owner of the subtask's parent task may change/delete it.
+async function ownsSubtask(ctx: { env: Env; data: Record<string, unknown> }, subtaskId: string): Promise<boolean> {
+  const me = await meFromCtx(ctx.env.DB, ctx);
+  const sub = await ctx.env.DB.prepare('SELECT task_id FROM subtasks WHERE id = ?').bind(subtaskId).first<{ task_id: string }>();
+  if (!sub) return false;
+  return isTaskOwner(ctx.env.DB, sub.task_id, me);
+}
+
 export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
+  if (!(await ownsSubtask(ctx, id))) return json({ error: 'Only the owner can edit this task' }, 403);
   const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus }>();
 
   const updates: string[] = [];
@@ -50,6 +61,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
 
 export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
+  if (!(await ownsSubtask(ctx, id))) return json({ error: 'Only the owner can edit this task' }, 403);
   await ctx.env.DB.prepare('DELETE FROM subtasks WHERE id = ?').bind(id).run();
   return json({ ok: true });
 };

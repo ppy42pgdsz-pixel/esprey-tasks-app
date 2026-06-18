@@ -24,7 +24,18 @@ export const api = {
 
   getTask: (id: string) => request<Task>(`/api/tasks/${id}`),
 
-  createTask: (data: { title: string; description?: string; priority?: TaskPriority; due_date?: number }) =>
+  createTask: (data: {
+    title: string;
+    description?: string;
+    priority?: TaskPriority;
+    due_date?: number;
+    company_id?: string;
+    company_name?: string;
+    contact_id?: string;
+    contact_name?: string;
+    visibility?: 'private' | 'shared';
+    share_emails?: string[];
+  }) =>
     request<Task>('/api/tasks', { method: 'POST', body: JSON.stringify(data) }),
 
   updateTask: (id: string, data: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'due_date' | 'draft_reply' | 'company_id' | 'company_name' | 'contact_id' | 'contact_name'>>) =>
@@ -82,4 +93,6 @@ export const api = {
     request<{ ok: boolean; alias: string }>(`/api/users/${encodeURIComponent(email)}/aliases`, { method: 'POST', body: JSON.stringify({ alias }) }),
   removeUserAlias: (email: string, alias: string) =>
     request<{ ok: boolean }>(`/api/users/${encodeURIComponent(email)}/aliases?alias=${encodeURIComponent(alias)}`, { method: 'DELETE' }),
+  setUserCompanies: (email: string, company_ids: string[]) =>
+    request<{ ok: boolean; company_ids: string[] }>(`/api/users/${encodeURIComponent(email)}/companies`, { method: 'PUT', body: JSON.stringify({ company_ids }) }),
 };

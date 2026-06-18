@@ -57,6 +57,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     company_name?: string;
     contact_id?: string;
     contact_name?: string;
+    visibility?: string;
+    share_emails?: string[];
   }>();
 
   if (!body.title?.trim()) {
@@ -66,10 +68,11 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const now = Date.now();
   const id = nanoid();
   const me = await resolvePrimary(ctx.env.DB, rawEmail(ctx));
+  const visibility = body.visibility === 'shared' ? 'shared' : 'private';
 
   await ctx.env.DB.prepare(
     `INSERT INTO tasks (id, title, description, status, priority, source, owner_email, visibility, created_at, updated_at, due_date, company_id, company_name, contact_id, contact_name)
-     VALUES (?, ?, ?, 'todo', ?, 'manual', ?, 'private', ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, 'todo', ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
@@ -77,6 +80,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       body.description ?? '',
       body.priority ?? 'normal',
       me,
+      visibility,
       now,
       now,
       body.due_date ?? null,
@@ -86,6 +90,14 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       body.contact_name ?? null,
     )
     .run();
+
+  // Share on create.
+  if (visibility === 'shared') {
+    const emails = Array.from(new Set((body.share_emails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean).filter((e) => e !== me)));
+    if (emails.length) {
+      await ctx.env.DB.batch(emails.map((e) => ctx.env.DB.prepare('INSERT OR IGNORE INTO task_shares (task_id, user_email) VALUES (?, ?)').bind(id, e)));
+    }
+  }
 
   const task = await ctx.env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(id).first();
   return json(task, 201);

@@ -103,13 +103,19 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const { results: aliases } = await ctx.env.DB.prepare(
     'SELECT alias_email, user_email FROM user_aliases',
   ).all<{ alias_email: string; user_email: string }>();
-  const withAliases = users.map((u) => ({
+  const { results: companies } = await ctx.env.DB.prepare(
+    'SELECT user_email, company_id FROM user_companies',
+  ).all<{ user_email: string; company_id: string }>();
+  const out = users.map((u) => ({
     ...u,
     aliases: aliases
       .filter((a) => a.user_email.toLowerCase() === u.email.toLowerCase())
       .map((a) => a.alias_email),
+    company_ids: companies
+      .filter((c) => c.user_email.toLowerCase() === u.email.toLowerCase())
+      .map((c) => c.company_id),
   }));
-  return json(withAliases);
+  return json(out);
 };
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {

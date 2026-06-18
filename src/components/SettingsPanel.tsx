@@ -18,6 +18,7 @@ interface Props {
   onDeleteUser: (email: string, wipe?: boolean) => Promise<void>;
   onAddAlias: (email: string, alias: string) => Promise<void>;
   onRemoveAlias: (email: string, alias: string) => Promise<void>;
+  onSetUserCompanies: (email: string, companyIds: string[]) => Promise<void>;
 }
 
 interface ContactDraft { name: string; email: string; company_id: string; }
@@ -27,7 +28,7 @@ export default function SettingsPanel(props: Props) {
     companies, contacts, me, users, onClose,
     onCreateCompany, onRenameCompany, onDeleteCompany,
     onCreateContact, onUpdateContact, onDeleteContact,
-    onCreateUser, onDeleteUser, onAddAlias, onRemoveAlias,
+    onCreateUser, onDeleteUser, onAddAlias, onRemoveAlias, onSetUserCompanies,
   } = props;
 
   const isAdmin = me?.role === 'admin';
@@ -157,6 +158,35 @@ export default function SettingsPanel(props: Props) {
                       <button className="btn-secondary sm" onClick={() => submitAlias(u.email)} disabled={busy || !(aliasInput[u.email] ?? '').trim()}>+ Add</button>
                     </div>
                   </div>
+
+                  {u.role === 'admin' ? (
+                    <p className="muted member-companies-note">Admins can use all companies.</p>
+                  ) : (
+                    <div className="member-companies">
+                      <span className="alias-label">Companies they can use</span>
+                      <div className="company-allot-list">
+                        {companies.map((c) => {
+                          const on = (u.company_ids ?? []).includes(c.id);
+                          return (
+                            <label key={c.id} className="checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                disabled={busy}
+                                onChange={() => run(async () => {
+                                  const current = u.company_ids ?? [];
+                                  const next = on ? current.filter((x) => x !== c.id) : [...current, c.id];
+                                  await onSetUserCompanies(u.email, next);
+                                })}
+                              />
+                              {c.name}
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <span className="muted">Personal is always available.</span>
+                    </div>
+                  )}
                 </div>
               );
             })}

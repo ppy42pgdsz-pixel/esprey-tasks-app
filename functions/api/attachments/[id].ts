@@ -4,6 +4,8 @@
  * render in the browser.
  */
 
+import { meFromCtx, canAccessTask } from '../_lib';
+
 interface Env {
   DB: D1Database;
   ATTACHMENTS: R2Bucket;
@@ -13,12 +15,15 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
 
   const row = await ctx.env.DB.prepare(
-    'SELECT r2_key, filename, mime_type FROM task_attachments WHERE id = ?',
+    'SELECT task_id, r2_key, filename, mime_type FROM task_attachments WHERE id = ?',
   )
     .bind(id)
-    .first<{ r2_key: string; filename: string | null; mime_type: string | null }>();
+    .first<{ task_id: string; r2_key: string; filename: string | null; mime_type: string | null }>();
 
   if (!row) return new Response('Not found', { status: 404 });
+
+  const me = await meFromCtx(ctx.env.DB, ctx);
+  if (!(await canAccessTask(ctx.env.DB, row.task_id, me))) return new Response('Forbidden', { status: 403 });
 
   const obj = await ctx.env.ATTACHMENTS.get(row.r2_key);
   if (!obj) return new Response('Not found', { status: 404 });

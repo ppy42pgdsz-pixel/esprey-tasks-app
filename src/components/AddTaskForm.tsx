@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import type { TaskPriority, Company, Contact } from '../types';
+import type { TaskPriority, Company, Contact, User } from '../types';
 import PeoplePicker from './PeoplePicker';
 
 interface Props {
   companies: Company[];
   contacts: Contact[];
+  me: { email: string } | null;
+  users: User[];
   onSubmit: (data: {
     title: string;
     description?: string;
@@ -13,19 +15,25 @@ interface Props {
     company_name?: string;
     contact_id?: string;
     contact_name?: string;
+    visibility?: 'private' | 'shared';
+    share_emails?: string[];
   }) => Promise<void>;
   onCancel: () => void;
 }
 
-export default function AddTaskForm({ companies, contacts, onSubmit, onCancel }: Props) {
+export default function AddTaskForm({ companies, contacts, me, users, onSubmit, onCancel }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('normal');
   const [companyId, setCompanyId] = useState('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [visibility, setVisibility] = useState<'private' | 'shared'>('private');
+  const [shareEmails, setShareEmails] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const selectedCompany = companies.find((c) => c.id === companyId);
+  const meEmail = (me?.email ?? '').toLowerCase();
+  const shareableUsers = users.filter((u) => u.email.toLowerCase() !== meEmail);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +48,8 @@ export default function AddTaskForm({ companies, contacts, onSubmit, onCancel }:
         company_name: selectedCompany?.name,
         contact_id: selectedContact?.id,
         contact_name: selectedContact?.name,
+        visibility,
+        share_emails: visibility === 'shared' ? shareEmails : [],
       });
     } finally {
       setSaving(false);
@@ -98,6 +108,42 @@ export default function AddTaskForm({ companies, contacts, onSubmit, onCancel }:
           selected={selectedContact}
           onSelect={setSelectedContact}
         />
+
+        <div className="detail-section">
+          <div className="section-label">Sharing</div>
+          <select
+            className="select-input"
+            value={visibility}
+            onChange={(e) => setVisibility(e.target.value as 'private' | 'shared')}
+          >
+            <option value="private">Private — only me</option>
+            <option value="shared">Shared</option>
+          </select>
+          {visibility === 'shared' && (
+            <div className="share-people mt">
+              {shareableUsers.length === 0 ? (
+                <p className="muted">No teammates yet — add them in Settings → Team.</p>
+              ) : (
+                shareableUsers.map((u) => {
+                  const checked = shareEmails.includes(u.email.toLowerCase());
+                  return (
+                    <label key={u.email} className="checkbox-label share-person">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const em = u.email.toLowerCase();
+                          setShareEmails((prev) => (checked ? prev.filter((x) => x !== em) : [...prev, em]));
+                        }}
+                      />
+                      {u.name} <span className="muted">{u.email}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="form-actions">
           <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
