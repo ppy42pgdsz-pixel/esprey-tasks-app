@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import type { Task, TaskStatus, Subtask, User, Contact } from '../types';
 import { api } from '../api';
 
@@ -64,6 +64,24 @@ export default function TaskList({
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [subsByTask, setSubsByTask] = useState<Record<string, Subtask[]>>({});
+
+  // Keep expanded subtask rows in sync when a subtask changes elsewhere
+  // (e.g. the detail panel): if the task's cached subtasks no longer match its
+  // live counts, refetch them.
+  useEffect(() => {
+    expanded.forEach((taskId) => {
+      const task = tasks.find((t) => t.id === taskId);
+      const cached = subsByTask[taskId];
+      if (!task || !cached) return;
+      const cachedDone = cached.filter((s) => s.status === 'done').length;
+      if (cachedDone !== (task.subtask_done ?? 0) || cached.length !== (task.subtask_total ?? 0)) {
+        api.listSubtasks(taskId)
+          .then((subs) => setSubsByTask((prev) => ({ ...prev, [taskId]: subs })))
+          .catch(() => {});
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, expanded]);
 
   const sorted = [...tasks].sort((a, b) => {
     let cmp = 0;
