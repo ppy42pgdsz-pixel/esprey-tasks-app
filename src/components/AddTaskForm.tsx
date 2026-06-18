@@ -25,7 +25,8 @@ export default function AddTaskForm({ companies, contacts, me, users, onSubmit, 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('normal');
-  const [companyId, setCompanyId] = useState('');
+  const personalId = companies.find((c) => c.name.trim().toLowerCase() === 'personal')?.id ?? '';
+  const [companyId, setCompanyId] = useState(personalId); // default to Personal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [visibility, setVisibility] = useState<'private' | 'shared'>('private');
   const [shareEmails, setShareEmails] = useState<string[]>([]);
@@ -95,7 +96,7 @@ export default function AddTaskForm({ companies, contacts, me, users, onSubmit, 
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
             >
-              <option value="">No company</option>
+              {!personalId && <option value="">No company</option>}
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

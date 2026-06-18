@@ -233,20 +233,24 @@ export default function SettingsPanel(props: Props) {
                   ) : (
                     <>
                       <span className="settings-row-name">{c.name}</span>
-                      <div className="settings-row-actions">
-                        <button className="link-btn" onClick={() => { setEditingCompanyId(c.id); setEditingCompanyName(c.name); }}>Edit</button>
-                        <button className="link-btn danger" onClick={() => removeCompany(c)} disabled={busy}>Delete</button>
-                      </div>
+                      {isAdmin && (
+                        <div className="settings-row-actions">
+                          <button className="link-btn" onClick={() => { setEditingCompanyId(c.id); setEditingCompanyName(c.name); }}>Edit</button>
+                          <button className="link-btn danger" onClick={() => removeCompany(c)} disabled={busy}>Delete</button>
+                        </div>
+                      )}
                     </>
                   )}
                 </li>
               ))}
             </ul>
           )}
-          <div className="inline-add mt">
-            <input className="text-input" placeholder="New company name" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCompany()} />
-            <button className="btn-primary sm" onClick={addCompany} disabled={busy || !newCompany.trim()}>Add</button>
-          </div>
+          {isAdmin && (
+            <div className="inline-add mt">
+              <input className="text-input" placeholder="New company name" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCompany()} />
+              <button className="btn-primary sm" onClick={addCompany} disabled={busy || !newCompany.trim()}>Add</button>
+            </div>
+          )}
         </section>
 
         {/* Contacts */}
