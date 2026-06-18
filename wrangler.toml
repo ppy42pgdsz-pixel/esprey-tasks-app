@@ -5,6 +5,7 @@ compatibility_date = "2024-09-23"
 APP_DOMAIN = "tasks.esprey.net"
 ADMIN_EMAIL = "cesprey@gmail.com"
 ADMIN_NAME = "Carl"
+CLOUDFLARE_ACCOUNT_ID = "85687e97532d7c76f98ac1a576162840"
 
 [[d1_databases]]
 binding = "DB"

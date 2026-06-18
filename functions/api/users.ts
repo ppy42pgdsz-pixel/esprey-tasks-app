@@ -3,12 +3,16 @@
  * POST /api/users — add an employee { name, email, role } (admin only)
  */
 
+import { grantAccess } from './_cf';
+
 interface Env {
   DB: D1Database;
   ADMIN_EMAIL: string;
   ADMIN_NAME?: string;
   APP_DOMAIN?: string;
   RESEND_API_KEY?: string;
+  CLOUDFLARE_API_TOKEN?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
 }
 
 function json(data: unknown, status = 200) {
@@ -121,6 +125,14 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   await ctx.env.DB.prepare(
     'INSERT OR REPLACE INTO users (email, name, role, created_at) VALUES (?, ?, ?, ?)',
   ).bind(email, name, role, Date.now()).run();
+
+  // Let them sign in: add their email to the Access policy. Roll back on failure.
+  try {
+    await grantAccess(ctx.env, email);
+  } catch (e) {
+    await ctx.env.DB.prepare('DELETE FROM users WHERE email = ?').bind(email).run();
+    return json({ error: `Cloudflare Access update failed: ${(e as Error).message}` }, 500);
+  }
 
   const user = await ctx.env.DB.prepare('SELECT email, name, role, created_at FROM users WHERE email = ?').bind(email).first();
 

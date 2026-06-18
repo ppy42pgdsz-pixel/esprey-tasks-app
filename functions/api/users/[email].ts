@@ -3,9 +3,14 @@
  * DELETE /api/users/:email — remove an employee (admin only)
  */
 
+import { revokeAccess } from '../_cf';
+
 interface Env {
   DB: D1Database;
   ADMIN_EMAIL: string;
+  APP_DOMAIN?: string;
+  CLOUDFLARE_API_TOKEN?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
 }
 
 function json(data: unknown, status = 200) {
@@ -50,6 +55,16 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   if (email === (ctx.env.ADMIN_EMAIL ?? '').toLowerCase()) return json({ error: 'Cannot remove the admin' }, 400);
 
   const wipe = new URL(ctx.request.url).searchParams.get('wipe') === 'true';
+
+  // Revoke their Access (primary + every alias) so they can no longer sign in.
+  const { results: aliasRows } = await ctx.env.DB.prepare('SELECT alias_email FROM user_aliases WHERE user_email = ?').bind(email).all<{ alias_email: string }>();
+  try {
+    for (const e of [email, ...aliasRows.map((r) => r.alias_email)]) {
+      await revokeAccess(ctx.env, e);
+    }
+  } catch (e) {
+    return json({ error: `Cloudflare Access update failed: ${(e as Error).message}` }, 500);
+  }
 
   if (wipe) {
     // Delete all tasks this person owns, plus their dependents.

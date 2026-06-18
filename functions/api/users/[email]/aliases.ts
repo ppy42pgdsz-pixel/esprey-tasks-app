@@ -3,9 +3,14 @@
  * DELETE /api/users/:email/aliases?alias=  — remove an alias (admin only)
  */
 
+import { grantAccess, revokeAccess } from '../../_cf';
+
 interface Env {
   DB: D1Database;
   ADMIN_EMAIL: string;
+  APP_DOMAIN?: string;
+  CLOUDFLARE_API_TOKEN?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
 }
 
 function json(data: unknown, status = 200) {
@@ -37,6 +42,14 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     'INSERT OR REPLACE INTO user_aliases (alias_email, user_email) VALUES (?, ?)',
   ).bind(alias, userEmail).run();
 
+  // Let them sign in with this address too. Roll back on failure.
+  try {
+    await grantAccess(ctx.env, alias);
+  } catch (e) {
+    await ctx.env.DB.prepare('DELETE FROM user_aliases WHERE alias_email = ? AND user_email = ?').bind(alias, userEmail).run();
+    return json({ error: `Cloudflare Access update failed: ${(e as Error).message}` }, 500);
+  }
+
   return json({ ok: true, alias });
 };
 
@@ -46,6 +59,11 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const alias = new URL(ctx.request.url).searchParams.get('alias')?.trim().toLowerCase();
   if (!alias) return json({ error: 'alias is required' }, 400);
 
+  try {
+    await revokeAccess(ctx.env, alias);
+  } catch (e) {
+    return json({ error: `Cloudflare Access update failed: ${(e as Error).message}` }, 500);
+  }
   await ctx.env.DB.prepare(
     'DELETE FROM user_aliases WHERE alias_email = ? AND user_email = ?',
   ).bind(alias, userEmail).run();
