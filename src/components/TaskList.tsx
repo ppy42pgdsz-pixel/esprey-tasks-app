@@ -215,7 +215,19 @@ export default function TaskList({
                       >
                         {STATUS_LABEL[s.status]}
                       </span>
-                      <span className="subtask-row-text">{s.text}</span>
+                      <span
+                        className="subtask-row-text clickable"
+                        onClick={() => onSelect(task)}
+                        title="Open task to assign or add notes"
+                      >
+                        {s.text}
+                      </span>
+                      {(s.assignee_emails ?? []).map((em) => (
+                        <span key={em} className="assignee-chip">{em.split('@')[0]}</span>
+                      ))}
+                      {(s.contact_ids ?? []).length > 0 && (
+                        <span className="assignee-chip contact">{(s.contact_ids ?? []).length} contact{(s.contact_ids ?? []).length > 1 ? 's' : ''}</span>
+                      )}
                       <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>
                     </div>
                   </td>

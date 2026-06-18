@@ -310,7 +310,7 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
           <ul className="subtask-list">
             {subtasks.map((s) => (
               <li key={s.id} className={`subtask-item ${s.status === 'done' ? 'done' : ''}`}>
-                <div className="subtask-row">
+                <div className="subtask-titlerow">
                   <span
                     className={`status-pill ${s.status}`}
                     title={`Mark as ${SUB_LABEL[SUB_NEXT[s.status]]}`}

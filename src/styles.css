@@ -556,7 +556,7 @@ body {
   border-radius: 6px;
   font-size: 14px;
 }
-.subtask-row { display: flex; align-items: center; gap: 8px; }
+.subtask-titlerow { display: flex; align-items: center; gap: 8px; }
 .subtask-item .select-checkbox { flex-shrink: 0; }
 
 .subtask-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-left: 2px; }
@@ -637,9 +637,12 @@ body {
 .subtask-line::before { content: ''; position: absolute; left: 38px; top: 0; bottom: 0; width: 1px; background: #cfccc8; }
 .subtask-line::after { content: ''; position: absolute; left: 38px; top: 50%; width: 14px; height: 1px; background: #cfccc8; }
 .subtask-row-text { flex: 1; min-width: 0; }
+.subtask-row-text.clickable { cursor: pointer; }
+.subtask-row-text.clickable:hover { text-decoration: underline; }
 .subtask-line.done .subtask-row-text { text-decoration: line-through; color: #a8a29e; }
 .subtask-line .status-pill { flex-shrink: 0; }
-.subtask-line .subtask-del { margin-left: auto; }
+.subtask-line .assignee-chip { flex-shrink: 0; }
+.subtask-line .subtask-del { margin-left: 0; }
 
 /* ─── Responsive ─── */
 @media (max-width: 700px) {
