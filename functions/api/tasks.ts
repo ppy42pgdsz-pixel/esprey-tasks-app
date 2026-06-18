@@ -27,17 +27,24 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const company_id = url.searchParams.get('company_id');
   const contact_id = url.searchParams.get('contact_id');
 
-  // Only tasks I own or that are shared with me.
-  const conditions: string[] = [
-    '(t.owner_email = ? OR EXISTS (SELECT 1 FROM task_shares ts WHERE ts.task_id = t.id AND ts.user_email = ?))',
-  ];
-  const params: string[] = [me, me];
+  // Tasks I own, that are shared with me, OR where I'm assigned a subtask.
+  // Subtask counts are scoped to the viewer: owners see all subtasks, while
+  // a member assigned into the task sees only the subtasks assigned to them.
+  const visibleSub = `(t.owner_email = ? OR EXISTS (SELECT 1 FROM subtask_assignees sa WHERE sa.subtask_id = s.id AND sa.user_email = ?))`;
+  const access = `(t.owner_email = ?
+    OR EXISTS (SELECT 1 FROM task_shares ts WHERE ts.task_id = t.id AND ts.user_email = ?)
+    OR EXISTS (SELECT 1 FROM subtask_assignees sa JOIN subtasks st ON st.id = sa.subtask_id WHERE st.task_id = t.id AND sa.user_email = ?))`;
+
+  const conditions: string[] = [access];
+  // Order of params must follow the order of `?` in the SQL string below:
+  // the two count subqueries (SELECT clause) come before the WHERE clause.
+  const params: string[] = [me, me, me, me, me, me, me];
   if (company_id) { conditions.push('t.company_id = ?'); params.push(company_id); }
   if (contact_id) { conditions.push('t.contact_id = ?'); params.push(contact_id); }
 
   const query = `SELECT t.*, u.name AS owner_name,
-    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id) AS subtask_total,
-    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done') AS subtask_done
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND ${visibleSub}) AS subtask_total,
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done' AND ${visibleSub}) AS subtask_done
     FROM tasks t
     LEFT JOIN users u ON u.email = t.owner_email
     WHERE ${conditions.join(' AND ')}

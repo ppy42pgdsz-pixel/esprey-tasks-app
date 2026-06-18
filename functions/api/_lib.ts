@@ -31,13 +31,31 @@ export async function isTaskOwner(db: D1Database, taskId: string, me: string): P
   return !!t && (t.owner_email ?? '').toLowerCase() === me;
 }
 
-/** True if `me` owns the task OR it's shared with them. */
+/** True if `me` owns the task, it's shared with them, OR they're assigned a subtask in it. */
 export async function canAccessTask(db: D1Database, taskId: string, me: string): Promise<boolean> {
   const t = await db.prepare('SELECT owner_email FROM tasks WHERE id = ?').bind(taskId).first<{ owner_email: string | null }>();
   if (!t) return false;
   if ((t.owner_email ?? '').toLowerCase() === me) return true;
   const s = await db.prepare('SELECT 1 FROM task_shares WHERE task_id = ? AND user_email = ?').bind(taskId, me).first();
-  return !!s;
+  if (s) return true;
+  const a = await db.prepare(
+    'SELECT 1 FROM subtask_assignees sa JOIN subtasks st ON st.id = sa.subtask_id WHERE st.task_id = ? AND sa.user_email = ? LIMIT 1',
+  ).bind(taskId, me).first();
+  return !!a;
+}
+
+/** True if `me` is assigned to the given subtask. */
+export async function isSubtaskAssignee(db: D1Database, subtaskId: string, me: string): Promise<boolean> {
+  const r = await db.prepare('SELECT 1 FROM subtask_assignees WHERE subtask_id = ? AND user_email = ?').bind(subtaskId, me).first();
+  return !!r;
+}
+
+/** True if `me` owns the parent task OR is assigned to the subtask (may update status/notes). */
+export async function canUpdateSubtask(db: D1Database, subtaskId: string, me: string): Promise<boolean> {
+  const sub = await db.prepare('SELECT task_id FROM subtasks WHERE id = ?').bind(subtaskId).first<{ task_id: string }>();
+  if (!sub) return false;
+  if (await isTaskOwner(db, sub.task_id, me)) return true;
+  return isSubtaskAssignee(db, subtaskId, me);
 }
 
 /** Resolve the canonical signed-in email for an API context. */

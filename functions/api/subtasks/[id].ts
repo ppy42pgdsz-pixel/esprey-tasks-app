@@ -3,7 +3,7 @@
  * DELETE /api/subtasks/:id — delete a subtask
  */
 
-import { meFromCtx, isTaskOwner } from '../_lib';
+import { meFromCtx, isTaskOwner, isSubtaskAssignee } from '../_lib';
 
 interface Env { DB: D1Database }
 
@@ -25,13 +25,21 @@ async function ownsSubtask(ctx: { env: Env; data: Record<string, unknown> }, sub
 
 export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
-  if (!(await ownsSubtask(ctx, id))) return json({ error: 'Only the owner can edit this task' }, 403);
+  const me = await meFromCtx(ctx.env.DB, ctx);
+  const sub = await ctx.env.DB.prepare('SELECT task_id FROM subtasks WHERE id = ?').bind(id).first<{ task_id: string }>();
+  if (!sub) return json({ error: 'Not found' }, 404);
+  const owner = await isTaskOwner(ctx.env.DB, sub.task_id, me);
+  // Owner can edit anything; an assignee may update status + shared notes only.
+  const canUpdate = owner || (await isSubtaskAssignee(ctx.env.DB, id, me));
+  if (!canUpdate) return json({ error: 'Not allowed to edit this subtask' }, 403);
+
   const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus; notes?: string }>();
 
   const updates: string[] = [];
   const values: unknown[] = [];
 
   if ('text' in body) {
+    if (!owner) return json({ error: 'Only the owner can rename a subtask' }, 403);
     const text = body.text?.trim();
     if (!text) return json({ error: 'text cannot be empty' }, 400);
     updates.push('text = ?');

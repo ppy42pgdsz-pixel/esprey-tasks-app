@@ -191,6 +191,7 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
         <select
           className="select-input"
           value={task.status}
+          disabled={!isOwner}
           onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
         >
           <option value="todo">To Do</option>
@@ -200,6 +201,7 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
         <select
           className="select-input"
           value={task.priority}
+          disabled={!isOwner}
           onChange={(e) => handlePriorityChange(e.target.value as TaskPriority)}
         >
           <option value="low">Low priority</option>
@@ -211,7 +213,9 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
       {/* Company */}
       <div className="detail-section">
         <div className="section-label">Company</div>
-        {companies.length === 0 ? (
+        {!isOwner ? (
+          <div className="section-value">{task.company_name || <span className="muted">No company</span>}</div>
+        ) : companies.length === 0 ? (
           <p className="muted">No companies yet. Add them in Settings.</p>
         ) : (
           <select
@@ -229,11 +233,18 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
 
       {/* Contact */}
       <div className="detail-section">
-        <PeoplePicker
-          contacts={contacts}
-          selected={selectedContact}
-          onSelect={handleContactSelect}
-        />
+        {!isOwner ? (
+          <>
+            <div className="section-label">Contact</div>
+            <div className="section-value">{task.contact_name || <span className="muted">—</span>}</div>
+          </>
+        ) : (
+          <PeoplePicker
+            contacts={contacts}
+            selected={selectedContact}
+            onSelect={handleContactSelect}
+          />
+        )}
       </div>
 
       {task.source === 'email' && task.from_email && (
@@ -382,18 +393,20 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
             ))}
           </ul>
         )}
-        <div className="subtask-add mt">
-          <textarea
-            className="textarea"
-            rows={3}
-            placeholder="Add a subtask — or paste a list (new lines, or 1) 2) 3) split into separate subtasks)"
-            value={newSubtask}
-            onChange={(e) => setNewSubtask(e.target.value)}
-          />
-          <button className="btn-primary sm" onClick={addSubtask} disabled={!newSubtask.trim()}>
-            Add
-          </button>
-        </div>
+        {isOwner && (
+          <div className="subtask-add mt">
+            <textarea
+              className="textarea"
+              rows={3}
+              placeholder="Add a subtask — or paste a list (new lines, or 1) 2) 3) split into separate subtasks)"
+              value={newSubtask}
+              onChange={(e) => setNewSubtask(e.target.value)}
+            />
+            <button className="btn-primary sm" onClick={addSubtask} disabled={!newSubtask.trim()}>
+              Add
+            </button>
+          </div>
+        )}
       </div>
 
       {attachments.length > 0 && (
@@ -423,15 +436,17 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
       <div className="detail-section">
         <div className="section-label-row">
           <span className="section-label">Notes</span>
-          <button
-            className="link-btn"
-            onClick={() => {
-              if (!editingDesc) setDescText(task.description);
-              setEditingDesc(!editingDesc);
-            }}
-          >
-            {editingDesc ? 'cancel' : 'edit'}
-          </button>
+          {isOwner && (
+            <button
+              className="link-btn"
+              onClick={() => {
+                if (!editingDesc) setDescText(task.description);
+                setEditingDesc(!editingDesc);
+              }}
+            >
+              {editingDesc ? 'cancel' : 'edit'}
+            </button>
+          )}
         </div>
         {editingDesc ? (
           <div>
@@ -457,6 +472,7 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
         </div>
       )}
 
+      {isOwner && (
       <div className="detail-section">
         <div className="section-label-row">
           <span className="section-label">Draft reply</span>
@@ -488,6 +504,7 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
           </div>
         )}
       </div>
+      )}
 
       {isOwner && (
         <div className="detail-footer">
