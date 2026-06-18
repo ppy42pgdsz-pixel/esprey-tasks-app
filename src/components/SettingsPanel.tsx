@@ -165,7 +165,7 @@ export default function SettingsPanel(props: Props) {
                     <div className="member-companies">
                       <span className="alias-label">Companies they can use</span>
                       <div className="company-allot-list">
-                        {companies.map((c) => {
+                        {companies.filter((c) => c.name.trim().toLowerCase() !== 'personal').map((c) => {
                           const on = (u.company_ids ?? []).includes(c.id);
                           return (
                             <label key={c.id} className="checkbox-label">
