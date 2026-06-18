@@ -411,6 +411,8 @@ export default function App() {
             onToggleSelectAll={toggleSelectAll}
             onSubtaskProgress={handleSubtaskProgress}
             meEmail={(me?.email ?? '').toLowerCase()}
+            users={users}
+            contacts={contacts}
           />
         )}
       </main>

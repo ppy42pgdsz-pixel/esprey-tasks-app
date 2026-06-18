@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import type { Task, TaskStatus, Subtask } from '../types';
+import type { Task, TaskStatus, Subtask, User, Contact } from '../types';
 import { api } from '../api';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -39,6 +39,8 @@ interface Props {
   onToggleSelectAll: () => void;
   onSubtaskProgress?: (taskId: string, total: number, done: number) => void;
   meEmail: string;
+  users: User[];
+  contacts: Contact[];
 }
 
 export default function TaskList({
@@ -52,7 +54,12 @@ export default function TaskList({
   onToggleSelectAll,
   onSubtaskProgress,
   meEmail,
+  users,
+  contacts,
 }: Props) {
+  const userName = (email: string) =>
+    users.find((u) => u.email.toLowerCase() === email.toLowerCase())?.name ?? email.split('@')[0];
+  const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? 'Contact';
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -223,11 +230,11 @@ export default function TaskList({
                         {s.text}
                       </span>
                       {(s.assignee_emails ?? []).map((em) => (
-                        <span key={em} className="assignee-chip">{em.split('@')[0]}</span>
+                        <span key={em} className="assignee-chip">{userName(em)}</span>
                       ))}
-                      {(s.contact_ids ?? []).length > 0 && (
-                        <span className="assignee-chip contact">{(s.contact_ids ?? []).length} contact{(s.contact_ids ?? []).length > 1 ? 's' : ''}</span>
-                      )}
+                      {(s.contact_ids ?? []).map((cid) => (
+                        <span key={cid} className="assignee-chip contact">{contactName(cid)}</span>
+                      ))}
                       <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>
                     </div>
                   </td>
