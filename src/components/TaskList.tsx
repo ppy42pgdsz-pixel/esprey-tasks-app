@@ -157,13 +157,18 @@ export default function TaskList({
                 </td>
 
                 <td>
-                  <span
-                    className={`status-pill ${task.status}`}
-                    title={`Mark as ${STATUS_LABEL[STATUS_NEXT[task.status]]}`}
-                    onClick={(e) => { e.stopPropagation(); onStatusChange(task, STATUS_NEXT[task.status]); }}
-                  >
-                    {STATUS_LABEL[task.status]}
-                  </span>
+                  {(() => {
+                    const ownsTask = (task.owner_email ?? '').toLowerCase() === meEmail || !task.owner_email;
+                    return (
+                      <span
+                        className={`status-pill ${task.status}${ownsTask ? '' : ' static'}`}
+                        title={ownsTask ? `Mark as ${STATUS_LABEL[STATUS_NEXT[task.status]]}` : `Owned by ${task.owner_name || task.owner_email}`}
+                        onClick={ownsTask ? (e) => { e.stopPropagation(); onStatusChange(task, STATUS_NEXT[task.status]); } : undefined}
+                      >
+                        {STATUS_LABEL[task.status]}
+                      </span>
+                    );
+                  })()}
                 </td>
 
                 <td>
