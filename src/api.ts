@@ -75,10 +75,12 @@ export const api = {
     request<Subtask[]>(`/api/tasks/${taskId}/subtasks`),
   createSubtask: (taskId: string, text: string) =>
     request<Subtask>(`/api/tasks/${taskId}/subtasks`, { method: 'POST', body: JSON.stringify({ text }) }),
-  updateSubtask: (id: string, data: { text?: string; done?: boolean; status?: TaskStatus }) =>
+  updateSubtask: (id: string, data: { text?: string; done?: boolean; status?: TaskStatus; notes?: string }) =>
     request<Subtask>(`/api/subtasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteSubtask: (id: string) =>
     request<{ ok: boolean }>(`/api/subtasks/${id}`, { method: 'DELETE' }),
+  setSubtaskAssignees: (id: string, data: { user_emails: string[]; contact_ids: string[] }) =>
+    request<{ ok: boolean; user_emails: string[]; contact_ids: string[] }>(`/api/subtasks/${id}/assignees`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // ─── Team / identity ───
   getMe: () => request<{ email: string; name: string; role: UserRole }>('/api/me'),

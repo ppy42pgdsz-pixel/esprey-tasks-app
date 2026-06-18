@@ -49,6 +49,9 @@ export interface Subtask {
   status: TaskStatus; // todo | in_progress | done
   position: number;
   created_at: number;
+  notes?: string;
+  assignee_emails?: string[];
+  contact_ids?: string[];
 }
 
 export interface Company {

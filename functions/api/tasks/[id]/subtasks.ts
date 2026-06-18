@@ -21,10 +21,21 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
   const me = await meFromCtx(ctx.env.DB, ctx);
   if (!(await canAccessTask(ctx.env.DB, id, me))) return json({ error: 'Forbidden' }, 403);
-  const { results } = await ctx.env.DB.prepare(
+  const { results: subs } = await ctx.env.DB.prepare(
     'SELECT * FROM subtasks WHERE task_id = ? ORDER BY position ASC, created_at ASC',
-  ).bind(id).all();
-  return json(results);
+  ).bind(id).all<{ id: string }>();
+  const { results: asg } = await ctx.env.DB.prepare(
+    'SELECT subtask_id, user_email FROM subtask_assignees WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)',
+  ).bind(id).all<{ subtask_id: string; user_email: string }>();
+  const { results: cons } = await ctx.env.DB.prepare(
+    'SELECT subtask_id, contact_id FROM subtask_contacts WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)',
+  ).bind(id).all<{ subtask_id: string; contact_id: string }>();
+  const out = subs.map((s) => ({
+    ...s,
+    assignee_emails: asg.filter((a) => a.subtask_id === s.id).map((a) => a.user_email),
+    contact_ids: cons.filter((c) => c.subtask_id === s.id).map((c) => c.contact_id),
+  }));
+  return json(out);
 };
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {

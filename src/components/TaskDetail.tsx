@@ -44,6 +44,7 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
+  const [assignOpenFor, setAssignOpenFor] = useState<string | null>(null);
   const [shareVisibility, setShareVisibility] = useState<'private' | 'shared'>(task.visibility ?? 'private');
   const [shareEmails, setShareEmails] = useState<string[]>([]);
   const [savingShare, setSavingShare] = useState(false);
@@ -101,6 +102,30 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
   const deleteSubtask = async (id: string) => {
     await api.deleteSubtask(id);
     commitSubtasks(subtasks.filter((x) => x.id !== id));
+  };
+
+  const userName = (email: string) =>
+    users.find((u) => u.email.toLowerCase() === email.toLowerCase())?.name ?? email;
+  const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? 'Contact';
+
+  const saveAssignees = async (s: Subtask, emails: string[], contactIds: string[]) => {
+    await api.setSubtaskAssignees(s.id, { user_emails: emails, contact_ids: contactIds });
+    setSubtasks((prev) => prev.map((x) => (x.id === s.id ? { ...x, assignee_emails: emails, contact_ids: contactIds } : x)));
+  };
+  const toggleAssignMember = (s: Subtask, email: string) => {
+    const cur = s.assignee_emails ?? [];
+    const next = cur.includes(email) ? cur.filter((e) => e !== email) : [...cur, email];
+    void saveAssignees(s, next, s.contact_ids ?? []);
+  };
+  const toggleAssignContact = (s: Subtask, id: string) => {
+    const cur = s.contact_ids ?? [];
+    const next = cur.includes(id) ? cur.filter((c) => c !== id) : [...cur, id];
+    void saveAssignees(s, s.assignee_emails ?? [], next);
+  };
+  const saveSubtaskNotes = async (s: Subtask, notes: string) => {
+    if ((s.notes ?? '') === notes) return;
+    await api.updateSubtask(s.id, { notes });
+    setSubtasks((prev) => prev.map((x) => (x.id === s.id ? { ...x, notes } : x)));
   };
 
   const handleGenerateReply = async () => {
@@ -285,15 +310,74 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
           <ul className="subtask-list">
             {subtasks.map((s) => (
               <li key={s.id} className={`subtask-item ${s.status === 'done' ? 'done' : ''}`}>
-                <span
-                  className={`status-pill ${s.status}`}
-                  title={`Mark as ${SUB_LABEL[SUB_NEXT[s.status]]}`}
-                  onClick={() => cycleSubtaskStatus(s)}
-                >
-                  {SUB_LABEL[s.status]}
-                </span>
-                <span className="subtask-text">{s.text}</span>
-                <button className="subtask-del" onClick={() => deleteSubtask(s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>
+                <div className="subtask-row">
+                  <span
+                    className={`status-pill ${s.status}`}
+                    title={`Mark as ${SUB_LABEL[SUB_NEXT[s.status]]}`}
+                    onClick={() => cycleSubtaskStatus(s)}
+                  >
+                    {SUB_LABEL[s.status]}
+                  </span>
+                  <span className="subtask-text">{s.text}</span>
+                  {isOwner && (
+                    <button className="subtask-del" onClick={() => deleteSubtask(s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>
+                  )}
+                </div>
+                <div className="subtask-meta">
+                  {(s.assignee_emails ?? []).map((em) => (
+                    <span key={em} className="assignee-chip">{userName(em)}</span>
+                  ))}
+                  {(s.contact_ids ?? []).map((cid) => (
+                    <span key={cid} className="assignee-chip contact">{contactName(cid)}</span>
+                  ))}
+                  {(s.assignee_emails ?? []).length === 0 && (s.contact_ids ?? []).length === 0 && (
+                    <span className="assignee-none">Unassigned</span>
+                  )}
+                  {isOwner && (
+                    <button className="link-btn" onClick={() => setAssignOpenFor(assignOpenFor === s.id ? null : s.id)}>
+                      {assignOpenFor === s.id ? 'Done' : 'Assign'}
+                    </button>
+                  )}
+                </div>
+                {isOwner && assignOpenFor === s.id && (
+                  <div className="assign-picker">
+                    <div className="assign-group">
+                      <div className="assign-label">Team</div>
+                      {users.length === 0 && <span className="assignee-none">No members</span>}
+                      {users.map((u) => (
+                        <label key={u.email} className="assign-check">
+                          <input
+                            type="checkbox"
+                            checked={(s.assignee_emails ?? []).includes(u.email.toLowerCase())}
+                            onChange={() => toggleAssignMember(s, u.email.toLowerCase())}
+                          />
+                          {u.name}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="assign-group">
+                      <div className="assign-label">Contacts</div>
+                      {contacts.length === 0 && <span className="assignee-none">No contacts</span>}
+                      {contacts.map((c) => (
+                        <label key={c.id} className="assign-check">
+                          <input
+                            type="checkbox"
+                            checked={(s.contact_ids ?? []).includes(c.id)}
+                            onChange={() => toggleAssignContact(s, c.id)}
+                          />
+                          {c.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <textarea
+                  className="subtask-notes"
+                  rows={2}
+                  placeholder="Shared notes for this subtask…"
+                  defaultValue={s.notes ?? ''}
+                  onBlur={(e) => saveSubtaskNotes(s, e.target.value)}
+                />
               </li>
             ))}
           </ul>

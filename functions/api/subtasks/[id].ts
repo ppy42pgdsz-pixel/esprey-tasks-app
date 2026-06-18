@@ -26,7 +26,7 @@ async function ownsSubtask(ctx: { env: Env; data: Record<string, unknown> }, sub
 export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
   if (!(await ownsSubtask(ctx, id))) return json({ error: 'Only the owner can edit this task' }, 403);
-  const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus }>();
+  const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus; notes?: string }>();
 
   const updates: string[] = [];
   const values: unknown[] = [];
@@ -36,6 +36,10 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     if (!text) return json({ error: 'text cannot be empty' }, 400);
     updates.push('text = ?');
     values.push(text.slice(0, 300));
+  }
+  if ('notes' in body) {
+    updates.push('notes = ?');
+    values.push((body.notes ?? '').slice(0, 5000));
   }
   if ('status' in body) {
     const status: SubStatus = body.status === 'in_progress' || body.status === 'done' ? body.status : 'todo';
