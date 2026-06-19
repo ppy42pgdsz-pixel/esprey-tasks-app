@@ -584,6 +584,10 @@ body {
 .assign-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #78716c; }
 .assign-check { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
 
+.subtask-due { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #78716c; }
+.subtask-due input { font: inherit; font-size: 12px; padding: 1px 4px; border: 1px solid #d6d3d1; border-radius: 5px; }
+.due-chip { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #ede9fe; color: #5b21b6; flex-shrink: 0; }
+
 .subtask-signoff { display: flex; align-items: center; gap: 8px; padding-left: 2px; }
 .signoff-pending { font-size: 12px; font-weight: 600; color: #92400e; }
 .signoff-accepted { font-size: 12px; font-weight: 600; color: #166534; }

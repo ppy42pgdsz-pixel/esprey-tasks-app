@@ -33,7 +33,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const canUpdate = owner || (await isSubtaskAssignee(ctx.env.DB, id, me));
   if (!canUpdate) return json({ error: 'Not allowed to edit this subtask' }, 403);
 
-  const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus; notes?: string; accepted?: boolean }>();
+  const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus; notes?: string; accepted?: boolean; due_date?: number | null }>();
 
   const updates: string[] = [];
   const values: unknown[] = [];
@@ -44,6 +44,11 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     if (!text) return json({ error: 'text cannot be empty' }, 400);
     updates.push('text = ?');
     values.push(text.slice(0, 300));
+  }
+  if ('due_date' in body) {
+    if (!owner) return json({ error: 'Only the owner can set a due date' }, 403);
+    updates.push('due_date = ?');
+    values.push(typeof body.due_date === 'number' ? body.due_date : null);
   }
   if ('notes' in body) {
     updates.push('notes = ?');

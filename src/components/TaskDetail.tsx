@@ -143,6 +143,13 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
     await api.updateSubtask(s.id, { notes });
     setSubtasks((prev) => prev.map((x) => (x.id === s.id ? { ...x, notes } : x)));
   };
+  const saveSubtaskDue = async (s: Subtask, ms: number | null) => {
+    const updated = await api.updateSubtask(s.id, { due_date: ms });
+    setSubtasks((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+  };
+  const toDateInput = (ms?: number | null) => (ms ? new Date(ms).toISOString().slice(0, 10) : '');
+  const fromDateInput = (v: string) => (v ? new Date(`${v}T00:00:00`).getTime() : null);
+  const fmtDue = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const handleGenerateReply = async () => {
     setGeneratingReply(true);
@@ -369,6 +376,18 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
                       {assignOpenFor === s.id ? 'Done' : 'Assign'}
                     </button>
                   )}
+                  {isOwner ? (
+                    <label className="subtask-due">
+                      Due
+                      <input
+                        type="date"
+                        value={toDateInput(s.due_date)}
+                        onChange={(e) => saveSubtaskDue(s, fromDateInput(e.target.value))}
+                      />
+                    </label>
+                  ) : s.due_date ? (
+                    <span className="due-chip">Due {fmtDue(s.due_date)}</span>
+                  ) : null}
                 </div>
                 {s.status === 'done' && (
                   <div className="subtask-signoff">

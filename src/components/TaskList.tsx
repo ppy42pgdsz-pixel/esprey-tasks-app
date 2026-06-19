@@ -268,6 +268,7 @@ export default function TaskList({
                       {(s.contact_ids ?? []).map((cid) => (
                         <span key={cid} className="assignee-chip contact">{contactName(cid)}</span>
                       ))}
+                      {s.due_date && <span className="due-chip">Due {formatDate(s.due_date)}</span>}
                       <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>
                     </div>
                   </td>

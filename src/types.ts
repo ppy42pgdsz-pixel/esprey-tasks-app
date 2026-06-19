@@ -56,6 +56,7 @@ export interface Subtask {
   assignee_emails?: string[];
   contact_ids?: string[];
   accepted_at?: number | null; // set when the owner signs off; null = awaiting sign-off
+  due_date?: number | null;
 }
 
 export interface Company {
