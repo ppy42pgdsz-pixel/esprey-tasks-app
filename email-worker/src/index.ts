@@ -52,7 +52,48 @@ async function resolveOwner(db: D1Database, sender: string | undefined, adminEma
   return (adminEmail ?? '').toLowerCase();
 }
 
+const COMPLETED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 1 month
+
+/**
+ * Delete tasks the owner completed more than a month ago, along with their
+ * subtasks, assignments, shares, and attachments (including R2 objects).
+ */
+async function purgeOldCompleted(env: Env): Promise<number> {
+  const cutoff = Date.now() - COMPLETED_RETENTION_MS;
+  const { results: doomed } = await env.DB
+    .prepare('SELECT id FROM tasks WHERE completed_at IS NOT NULL AND completed_at < ?')
+    .bind(cutoff)
+    .all<{ id: string }>();
+  if (!doomed.length) return 0;
+
+  for (const { id } of doomed) {
+    // Purge R2 objects for this task's attachments first.
+    const { results: atts } = await env.DB
+      .prepare('SELECT r2_key FROM task_attachments WHERE task_id = ?')
+      .bind(id)
+      .all<{ r2_key: string }>();
+    for (const a of atts) {
+      try { await env.ATTACHMENTS.delete(a.r2_key); } catch (e) { console.error('R2 delete failed', a.r2_key, e); }
+    }
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM subtask_assignees WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)').bind(id),
+      env.DB.prepare('DELETE FROM subtask_contacts WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)').bind(id),
+      env.DB.prepare('DELETE FROM subtasks WHERE task_id = ?').bind(id),
+      env.DB.prepare('DELETE FROM task_shares WHERE task_id = ?').bind(id),
+      env.DB.prepare('DELETE FROM task_attachments WHERE task_id = ?').bind(id),
+      env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id),
+    ]);
+  }
+  return doomed.length;
+}
+
 export default {
+  // Daily cron (see wrangler.toml [triggers]) — prune old completed tasks.
+  async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    const n = await purgeOldCompleted(env);
+    console.log(`Scheduled cleanup: removed ${n} completed task(s) older than 1 month`);
+  },
+
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
     const rawEmail = await new Response(message.raw).arrayBuffer();
     const parsed = await PostalMime.parse(rawEmail);
