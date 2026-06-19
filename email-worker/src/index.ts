@@ -20,6 +20,8 @@ interface Env {
   ANTHROPIC_API_KEY: string;
   ADMIN_EMAIL: string;
   ADMIN_NAME: string;
+  RESEND_API_KEY?: string;
+  APP_DOMAIN?: string;
 }
 
 const AI_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -87,11 +89,118 @@ async function purgeOldCompleted(env: Env): Promise<number> {
   return doomed.length;
 }
 
+const DUE_SOON_MS = 3 * 24 * 60 * 60 * 1000; // "due soon" = within 3 days (or overdue)
+
+function fmtDate(ms: number): string {
+  return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function dueLabel(ms: number, now: number): string {
+  const d = fmtDate(ms);
+  if (ms < now) return `${d} (overdue)`;
+  return d;
+}
+
+/**
+ * Build and send each user's morning digest. Sends only to users who have at
+ * least one item across: awaiting their sign-off, assigned to them, or due soon.
+ * No-ops entirely if RESEND_API_KEY isn't configured on the worker.
+ */
+async function sendDailyDigests(env: Env): Promise<number> {
+  if (!env.RESEND_API_KEY) { console.log('digest: RESEND_API_KEY not set, skipping'); return 0; }
+  const appUrl = `https://${env.APP_DOMAIN ?? 'tasks.esprey.net'}`;
+  const now = Date.now();
+  const dueCutoff = now + DUE_SOON_MS;
+
+  const { results: users } = await env.DB
+    .prepare('SELECT email, name FROM users')
+    .all<{ email: string; name: string }>();
+
+  let sent = 0;
+  for (const u of users) {
+    const email = u.email.toLowerCase();
+
+    const { results: awaiting } = await env.DB.prepare(
+      `SELECT t.title AS task_title, s.text AS subtask_text
+       FROM subtasks s JOIN tasks t ON t.id = s.task_id
+       WHERE t.owner_email = ? AND s.status = 'done' AND s.accepted_at IS NULL
+       ORDER BY t.title`,
+    ).bind(email).all<{ task_title: string; subtask_text: string }>();
+
+    const { results: assigned } = await env.DB.prepare(
+      `SELECT t.title AS task_title, s.text AS subtask_text, s.status AS status, s.due_date AS due_date
+       FROM subtask_assignees sa JOIN subtasks s ON s.id = sa.subtask_id JOIN tasks t ON t.id = s.task_id
+       WHERE sa.user_email = ? AND s.accepted_at IS NULL
+       ORDER BY (s.due_date IS NULL), s.due_date`,
+    ).bind(email).all<{ task_title: string; subtask_text: string; status: string; due_date: number | null }>();
+
+    const { results: dueTasks } = await env.DB.prepare(
+      `SELECT title, due_date FROM tasks
+       WHERE owner_email = ? AND status != 'done' AND completed_at IS NULL
+         AND due_date IS NOT NULL AND due_date <= ?
+       ORDER BY due_date`,
+    ).bind(email, dueCutoff).all<{ title: string; due_date: number }>();
+
+    if (!awaiting.length && !assigned.length && !dueTasks.length) continue;
+
+    const firstName = (u.name || '').trim().split(/\s+/)[0] || 'there';
+    const textParts: string[] = [`Hi ${firstName},`, '', "Here's your Esprey Tasks summary for today."];
+    const htmlParts: string[] = [`<p>Hi ${firstName},</p><p>Here's your Esprey Tasks summary for today.</p>`];
+
+    if (awaiting.length) {
+      textParts.push('', `AWAITING YOUR SIGN-OFF (${awaiting.length})`);
+      awaiting.forEach((a) => textParts.push(`- ${a.subtask_text} — ${a.task_title}`));
+      htmlParts.push(`<p><strong>Awaiting your sign-off (${awaiting.length})</strong></p><ul>${awaiting.map((a) => `<li>${esc(a.subtask_text)} — <em>${esc(a.task_title)}</em></li>`).join('')}</ul>`);
+    }
+    if (assigned.length) {
+      textParts.push('', `ASSIGNED TO YOU (${assigned.length})`);
+      assigned.forEach((a) => textParts.push(`- ${a.subtask_text} — ${a.task_title}${a.due_date ? ` (due ${dueLabel(a.due_date, now)})` : ''}`));
+      htmlParts.push(`<p><strong>Assigned to you (${assigned.length})</strong></p><ul>${assigned.map((a) => `<li>${esc(a.subtask_text)} — <em>${esc(a.task_title)}</em>${a.due_date ? ` <span style="color:#5b21b6">(due ${dueLabel(a.due_date, now)})</span>` : ''}</li>`).join('')}</ul>`);
+    }
+    if (dueTasks.length) {
+      textParts.push('', `YOUR TASKS DUE SOON (${dueTasks.length})`);
+      dueTasks.forEach((d) => textParts.push(`- ${d.title} — due ${dueLabel(d.due_date, now)}`));
+      htmlParts.push(`<p><strong>Your tasks due soon (${dueTasks.length})</strong></p><ul>${dueTasks.map((d) => `<li>${esc(d.title)} — <span style="color:#5b21b6">due ${dueLabel(d.due_date, now)}</span></li>`).join('')}</ul>`);
+    }
+
+    textParts.push('', `Open the app: ${appUrl}`);
+    htmlParts.push(`<p><a href="${appUrl}">Open Esprey Tasks</a></p>`);
+
+    try {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'Esprey Tasks <tasks@esprey.net>',
+          to: [u.email],
+          reply_to: env.ADMIN_EMAIL,
+          subject: 'Your Esprey Tasks summary',
+          text: textParts.join('\n'),
+          html: `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#1c1917;line-height:1.55;">${htmlParts.join('')}</div>`,
+        }),
+      });
+      sent++;
+    } catch (e) {
+      console.error('digest send failed for', u.email, e);
+    }
+  }
+  return sent;
+}
+
+/** Minimal HTML escaping for user-supplied text in the digest. */
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 export default {
-  // Daily cron (see wrangler.toml [triggers]) — prune old completed tasks.
-  async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    const n = await purgeOldCompleted(env);
-    console.log(`Scheduled cleanup: removed ${n} completed task(s) older than 1 month`);
+  // Cron handlers (see wrangler.toml [triggers]).
+  async scheduled(event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    if (event.cron === '0 6 * * *') {
+      const n = await sendDailyDigests(env);
+      console.log(`Daily digest: sent ${n} email(s)`);
+    } else {
+      const n = await purgeOldCompleted(env);
+      console.log(`Scheduled cleanup: removed ${n} completed task(s) older than 1 month`);
+    }
   },
 
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {

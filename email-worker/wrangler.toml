@@ -8,7 +8,10 @@ ADMIN_NAME = "Carl"
 APP_DOMAIN = "tasks.esprey.net"
 
 [triggers]
-crons = ["0 3 * * *"] # daily 03:00 UTC — prune completed tasks older than 1 month
+crons = [
+  "0 3 * * *", # 03:00 UTC — prune completed tasks older than 1 month
+  "0 6 * * *", # 06:00 UTC (~7am UK in summer) — send daily digest emails
+]
 
 [[d1_databases]]
 binding = "DB"
