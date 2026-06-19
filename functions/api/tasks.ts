@@ -35,17 +35,31 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     OR EXISTS (SELECT 1 FROM task_shares ts WHERE ts.task_id = t.id AND ts.user_email = ?)
     OR EXISTS (SELECT 1 FROM subtask_assignees sa JOIN subtasks st ON st.id = sa.subtask_id WHERE st.task_id = t.id AND sa.user_email = ?))`;
 
+  // "Completed for this viewer": the owner's task is done, OR a member has
+  // assigned subtasks in it and every one of them has been signed off.
+  const archived = `CASE WHEN t.owner_email = ? THEN (CASE WHEN t.status = 'done' THEN 1 ELSE 0 END)
+    ELSE (CASE WHEN (SELECT COUNT(*) FROM subtask_assignees sa JOIN subtasks st ON st.id = sa.subtask_id WHERE st.task_id = t.id AND sa.user_email = ?) > 0
+                AND (SELECT COUNT(*) FROM subtask_assignees sa JOIN subtasks st ON st.id = sa.subtask_id WHERE st.task_id = t.id AND sa.user_email = ? AND st.accepted_at IS NULL) = 0
+           THEN 1 ELSE 0 END)
+    END`;
+
   const conditions: string[] = [access];
   // Order of params must follow the order of `?` in the SQL string below:
-  // the two count subqueries (SELECT clause) come before the WHERE clause.
-  const params: string[] = [me, me, me, me, me, me, me];
+  // the SELECT-clause subqueries come before the WHERE clause.
+  const params: string[] = [
+    me, me,        // subtask_total
+    me, me,        // subtask_done
+    me, me, me,    // archived CASE (owner check, has-assigned, open-count)
+    me, me, me,    // WHERE access (owner, shared, assigned)
+  ];
   if (company_id) { conditions.push('t.company_id = ?'); params.push(company_id); }
   if (contact_id) { conditions.push('t.contact_id = ?'); params.push(contact_id); }
 
   const query = `SELECT t.*, u.name AS owner_name,
     (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND ${visibleSub}) AS subtask_total,
     (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done' AND ${visibleSub}) AS subtask_done,
-    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done' AND s.accepted_at IS NULL) AS pending_signoff
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done' AND s.accepted_at IS NULL) AS pending_signoff,
+    ${archived} AS archived
     FROM tasks t
     LEFT JOIN users u ON u.email = t.owner_email
     WHERE ${conditions.join(' AND ')}

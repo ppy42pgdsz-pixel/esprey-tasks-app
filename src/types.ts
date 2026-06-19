@@ -30,6 +30,7 @@ export interface Task {
   subtask_done?: number;
   pending_signoff?: number; // subtasks marked done but awaiting owner sign-off
   completed_at?: number | null;
+  archived?: number; // 1 = completed for the current viewer (owner done, or all my subtasks accepted)
 }
 
 export type UserRole = 'admin' | 'member';

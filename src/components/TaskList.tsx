@@ -41,6 +41,7 @@ interface Props {
   meEmail: string;
   users: User[];
   contacts: Contact[];
+  showCompleted: boolean;
 }
 
 export default function TaskList({
@@ -56,6 +57,7 @@ export default function TaskList({
   meEmail,
   users,
   contacts,
+  showCompleted,
 }: Props) {
   const userName = (email: string) =>
     users.find((u) => u.email.toLowerCase() === email.toLowerCase())?.name ?? email.split('@')[0];
@@ -242,7 +244,7 @@ export default function TaskList({
                 </tr>
               )}
 
-              {isExpanded && (subsByTask[task.id] ?? []).map((s) => (
+              {isExpanded && (subsByTask[task.id] ?? []).filter((s) => showCompleted || !s.accepted_at).map((s) => (
                 <tr key={s.id} className="subtask-row">
                   <td colSpan={COL_COUNT}>
                     <div className={`subtask-line ${s.status === 'done' ? 'done' : ''}`}>

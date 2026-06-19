@@ -10,7 +10,7 @@ import './styles.css';
 const sortContacts = (list: Contact[]) =>
   [...list].sort((a, b) => b.is_favourite - a.is_favourite || a.name.localeCompare(b.name));
 
-type FilterStatus = 'all' | TaskStatus;
+type FilterStatus = 'all' | 'todo' | 'in_progress' | 'completed';
 
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -89,6 +89,22 @@ export default function App() {
   useEffect(() => {
     setLoading(true);
     loadTasks();
+  }, [loadTasks]);
+
+  // Keep the list fresh across users without a manual refresh: poll periodically
+  // and whenever the window/tab regains focus. loadTasks doesn't toggle the
+  // loading spinner, so these refetches are silent.
+  useEffect(() => {
+    const refetch = () => loadTasks();
+    const onVisible = () => { if (!document.hidden) refetch(); };
+    const id = window.setInterval(refetch, 15000);
+    window.addEventListener('focus', refetch);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', refetch);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [loadTasks]);
 
   // Preserve subtask counts (the PATCH response doesn't include them).
@@ -203,7 +219,13 @@ export default function App() {
       return next;
     });
   };
-  const visibleTasks = filterStatus === 'all' ? tasks : tasks.filter((t) => t.status === filterStatus);
+  // Completed (archived) tasks live under the "Completed" view; everything else
+  // shows only active (non-archived) tasks.
+  const activeTasks = tasks.filter((t) => !t.archived);
+  const visibleTasks =
+    filterStatus === 'completed' ? tasks.filter((t) => t.archived)
+    : filterStatus === 'all' ? activeTasks
+    : activeTasks.filter((t) => t.status === filterStatus);
 
   const allSelected = visibleTasks.length > 0 && visibleTasks.every((t) => selectedIds.has(t.id));
   const toggleSelectAll = () => {
@@ -234,10 +256,10 @@ export default function App() {
   };
 
   const counts = {
-    all: tasks.length,
-    todo: tasks.filter((t) => t.status === 'todo').length,
-    in_progress: tasks.filter((t) => t.status === 'in_progress').length,
-    done: tasks.filter((t) => t.status === 'done').length,
+    all: activeTasks.length,
+    todo: activeTasks.filter((t) => t.status === 'todo').length,
+    in_progress: activeTasks.filter((t) => t.status === 'in_progress').length,
+    completed: tasks.filter((t) => t.archived).length,
   };
 
   const favouriteContacts = contacts.filter((c) => c.is_favourite === 1);
@@ -289,7 +311,7 @@ export default function App() {
                 ['all', 'tasks', counts.all],
                 ['todo', 'to do', counts.todo],
                 ['in_progress', 'in progress', counts.in_progress],
-                ['done', 'done', counts.done],
+                ['completed', 'completed', counts.completed],
               ] as [FilterStatus, string, number][]).map(([status, label, n]) => (
                 <button
                   key={status}
@@ -415,6 +437,7 @@ export default function App() {
             meEmail={(me?.email ?? '').toLowerCase()}
             users={users}
             contacts={contacts}
+            showCompleted={filterStatus === 'completed'}
           />
         )}
       </main>
