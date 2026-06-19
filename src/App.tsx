@@ -131,8 +131,10 @@ export default function App() {
     setSelectedTask(updated);
   };
 
-  const handleSubtaskProgress = (taskId: string, total: number, done: number) => {
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, subtask_total: total, subtask_done: done } : t)));
+  const handleSubtaskProgress = (taskId: string, total: number, done: number, pending?: number) => {
+    setTasks((prev) => prev.map((t) => (t.id === taskId
+      ? { ...t, subtask_total: total, subtask_done: done, ...(pending === undefined ? {} : { pending_signoff: pending }) }
+      : t)));
   };
 
   const handleShareChange = (taskId: string, visibility: 'private' | 'shared') => {

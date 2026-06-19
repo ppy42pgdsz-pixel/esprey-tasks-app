@@ -43,6 +43,12 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     }
   }
 
+  // Completion timestamp: set when the task is marked done, cleared when reopened.
+  if ('status' in body) {
+    updates.push('completed_at = ?');
+    values.push(body.status === 'done' ? Date.now() : null);
+  }
+
   if (updates.length === 0) {
     return json({ error: 'No valid fields to update' }, 400);
   }

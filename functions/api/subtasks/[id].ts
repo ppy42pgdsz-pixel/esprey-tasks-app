@@ -26,14 +26,14 @@ async function ownsSubtask(ctx: { env: Env; data: Record<string, unknown> }, sub
 export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
   const me = await meFromCtx(ctx.env.DB, ctx);
-  const sub = await ctx.env.DB.prepare('SELECT task_id FROM subtasks WHERE id = ?').bind(id).first<{ task_id: string }>();
+  const sub = await ctx.env.DB.prepare('SELECT task_id, accepted_at FROM subtasks WHERE id = ?').bind(id).first<{ task_id: string; accepted_at: number | null }>();
   if (!sub) return json({ error: 'Not found' }, 404);
   const owner = await isTaskOwner(ctx.env.DB, sub.task_id, me);
   // Owner can edit anything; an assignee may update status + shared notes only.
   const canUpdate = owner || (await isSubtaskAssignee(ctx.env.DB, id, me));
   if (!canUpdate) return json({ error: 'Not allowed to edit this subtask' }, 403);
 
-  const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus; notes?: string }>();
+  const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus; notes?: string; accepted?: boolean }>();
 
   const updates: string[] = [];
   const values: unknown[] = [];
@@ -49,17 +49,33 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     updates.push('notes = ?');
     values.push((body.notes ?? '').slice(0, 5000));
   }
-  if ('status' in body) {
-    const status: SubStatus = body.status === 'in_progress' || body.status === 'done' ? body.status : 'todo';
+
+  // Owner sign-off: accept (lock as done + stamp) or reinstate (back to in progress).
+  if ('accepted' in body) {
+    if (!owner) return json({ error: 'Only the owner can sign off a subtask' }, 403);
+    if (body.accepted) {
+      updates.push('status = ?'); values.push('done');
+      updates.push('done = ?'); values.push(1);
+      updates.push('accepted_at = ?'); values.push(Date.now());
+    } else {
+      updates.push('status = ?'); values.push('in_progress');
+      updates.push('done = ?'); values.push(0);
+      updates.push('accepted_at = ?'); values.push(null);
+    }
+  } else if ('status' in body || 'done' in body) {
+    // A member can't change a subtask the owner has already signed off.
+    if (!owner && sub.accepted_at) return json({ error: 'This subtask has been signed off by the owner' }, 403);
+    const status: SubStatus = 'status' in body
+      ? (body.status === 'in_progress' || body.status === 'done' ? body.status : 'todo')
+      : (body.done ? 'done' : 'todo');
     updates.push('status = ?');
     values.push(status);
     updates.push('done = ?'); // keep the legacy flag in sync
     values.push(status === 'done' ? 1 : 0);
-  } else if ('done' in body) {
-    updates.push('done = ?');
-    values.push(body.done ? 1 : 0);
-    updates.push('status = ?');
-    values.push(body.done ? 'done' : 'todo');
+    // Sign-off coupling: the owner's own "done" auto-accepts; a member's "done"
+    // is pending sign-off (accepted_at stays null); leaving "done" clears it.
+    updates.push('accepted_at = ?');
+    values.push(status === 'done' && owner ? Date.now() : null);
   }
   if (updates.length === 0) return json({ error: 'No valid fields to update' }, 400);
 

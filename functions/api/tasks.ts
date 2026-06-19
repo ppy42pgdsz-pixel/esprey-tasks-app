@@ -44,7 +44,8 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
 
   const query = `SELECT t.*, u.name AS owner_name,
     (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND ${visibleSub}) AS subtask_total,
-    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done' AND ${visibleSub}) AS subtask_done
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done' AND ${visibleSub}) AS subtask_done,
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done' AND s.accepted_at IS NULL) AS pending_signoff
     FROM tasks t
     LEFT JOIN users u ON u.email = t.owner_email
     WHERE ${conditions.join(' AND ')}

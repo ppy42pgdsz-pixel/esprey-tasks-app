@@ -28,6 +28,8 @@ export interface Task {
   // Present on the list endpoint (subtask progress); optional elsewhere.
   subtask_total?: number;
   subtask_done?: number;
+  pending_signoff?: number; // subtasks marked done but awaiting owner sign-off
+  completed_at?: number | null;
 }
 
 export type UserRole = 'admin' | 'member';
@@ -52,6 +54,7 @@ export interface Subtask {
   notes?: string;
   assignee_emails?: string[];
   contact_ids?: string[];
+  accepted_at?: number | null; // set when the owner signs off; null = awaiting sign-off
 }
 
 export interface Company {

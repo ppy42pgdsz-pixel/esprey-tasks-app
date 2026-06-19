@@ -37,7 +37,7 @@ interface Props {
   onToggleSelect: (id: string) => void;
   allSelected: boolean;
   onToggleSelectAll: () => void;
-  onSubtaskProgress?: (taskId: string, total: number, done: number) => void;
+  onSubtaskProgress?: (taskId: string, total: number, done: number, pending?: number) => void;
   meEmail: string;
   users: User[];
   contacts: Contact[];
@@ -127,7 +127,12 @@ export default function TaskList({
 
   const commitSubs = (taskId: string, list: Subtask[]) => {
     setSubsByTask((prev) => ({ ...prev, [taskId]: list }));
-    onSubtaskProgress?.(taskId, list.length, list.filter((s) => s.status === 'done').length);
+    onSubtaskProgress?.(
+      taskId,
+      list.length,
+      list.filter((s) => s.status === 'done').length,
+      list.filter((s) => s.status === 'done' && !s.accepted_at).length,
+    );
   };
 
   const cycleSub = async (taskId: string, s: Subtask) => {
@@ -210,6 +215,9 @@ export default function TaskList({
                     )}
                     {hasSubs && (
                       <span className="subtask-badge">☑ {task.subtask_done ?? 0}/{task.subtask_total}</span>
+                    )}
+                    {(task.pending_signoff ?? 0) > 0 && (task.owner_email ?? '').toLowerCase() === meEmail && (
+                      <span className="signoff-badge">{task.pending_signoff} to sign off</span>
                     )}
                   </div>
                 </td>

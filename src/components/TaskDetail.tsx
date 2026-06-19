@@ -31,7 +31,7 @@ interface Props {
   onClose: () => void;
   onUpdate: (task: Task) => void;
   onDelete: (task: Task) => void;
-  onSubtaskProgress?: (taskId: string, total: number, done: number) => void;
+  onSubtaskProgress?: (taskId: string, total: number, done: number, pending?: number) => void;
   onShareChange?: (taskId: string, visibility: 'private' | 'shared') => void;
 }
 
@@ -80,11 +80,27 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
 
   const commitSubtasks = (next: Subtask[]) => {
     setSubtasks(next);
-    onSubtaskProgress?.(task.id, next.length, next.filter((s) => s.status === 'done').length);
+    onSubtaskProgress?.(
+      task.id,
+      next.length,
+      next.filter((s) => s.status === 'done').length,
+      next.filter((s) => s.status === 'done' && !s.accepted_at).length,
+    );
   };
 
   const cycleSubtaskStatus = async (s: Subtask) => {
+    // A member can't change a subtask the owner has already signed off.
+    if (!isOwner && s.accepted_at) return;
     const updated = await api.updateSubtask(s.id, { status: SUB_NEXT[s.status] });
+    commitSubtasks(subtasks.map((x) => (x.id === updated.id ? updated : x)));
+  };
+
+  const acceptSubtask = async (s: Subtask) => {
+    const updated = await api.updateSubtask(s.id, { accepted: true });
+    commitSubtasks(subtasks.map((x) => (x.id === updated.id ? updated : x)));
+  };
+  const reinstateSubtask = async (s: Subtask) => {
+    const updated = await api.updateSubtask(s.id, { accepted: false });
     commitSubtasks(subtasks.map((x) => (x.id === updated.id ? updated : x)));
   };
 
@@ -152,6 +168,10 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
   };
 
   const handleStatusChange = async (status: TaskStatus) => {
+    if (status === 'done') {
+      const unfinished = subtasks.filter((s) => !(s.status === 'done' && s.accepted_at)).length;
+      if (unfinished > 0 && !confirm(`${unfinished} subtask${unfinished > 1 ? 's are' : ' is'} not signed off yet. Mark the whole task complete anyway?`)) return;
+    }
     const updated = await api.updateTask(task.id, { status });
     onUpdate(updated);
   };
@@ -350,6 +370,28 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
                     </button>
                   )}
                 </div>
+                {s.status === 'done' && (
+                  <div className="subtask-signoff">
+                    {s.accepted_at ? (
+                      <>
+                        <span className="signoff-accepted">✓ Accepted</span>
+                        {isOwner && (
+                          <button className="btn-mini" onClick={() => reinstateSubtask(s)}>Reopen</button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="signoff-pending">Awaiting sign-off</span>
+                        {isOwner && (
+                          <>
+                            <button className="btn-mini accept" onClick={() => acceptSubtask(s)}>Accept</button>
+                            <button className="btn-mini" onClick={() => reinstateSubtask(s)}>Reinstate</button>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
                 {isOwner && assignOpenFor === s.id && (
                   <div className="assign-picker">
                     <div className="assign-group">
