@@ -232,16 +232,16 @@ export default function App() {
     setSelectedIds(allSelected ? new Set() : new Set(visibleTasks.map((t) => t.id)));
   };
 
+  // Run a bulk action over selected tasks. Never blanks the table on failure:
+  // it reloads and reports how many were rejected (e.g. tasks you don't own).
   const applyBulk = async (fn: (id: string) => Promise<unknown>) => {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    try {
-      await Promise.all(ids.map(fn));
-      await loadTasks();
-      setSelectedIds(new Set());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Bulk action failed');
-    }
+    const results = await Promise.allSettled(ids.map(fn));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    await loadTasks();
+    setSelectedIds(new Set());
+    if (failed) alert(`${failed} of ${ids.length} task(s) couldn't be changed — you can only edit tasks you own.`);
   };
   const handleBulkStatus = (status: TaskStatus) => applyBulk((id) => api.updateTask(id, { status }));
   const handleBulkCompany = (value: string) => {
@@ -250,9 +250,26 @@ export default function App() {
     return applyBulk((id) => api.updateTask(id, { company_id: companyId || null, company_name: company?.name ?? null }));
   };
   const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    if (!confirm(`Delete ${selectedIds.size} task(s)? This cannot be undone.`)) return;
-    await applyBulk((id) => api.deleteTask(id));
+    const meEmail = (me?.email ?? '').toLowerCase();
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    // You can only delete tasks you own — filter those out before asking.
+    const mine = ids.filter((id) => {
+      const t = tasks.find((x) => x.id === id);
+      return !!t && ((t.owner_email ?? '').toLowerCase() === meEmail || !t.owner_email);
+    });
+    if (mine.length === 0) {
+      alert("You can only delete tasks you own. Tasks shared with you can't be deleted.");
+      return;
+    }
+    const skipped = ids.length - mine.length;
+    const msg = skipped > 0
+      ? `Delete ${mine.length} task(s) you own? ${skipped} owned by someone else will be left alone. This cannot be undone.`
+      : `Delete ${mine.length} task(s)? This cannot be undone.`;
+    if (!confirm(msg)) return;
+    await Promise.allSettled(mine.map((id) => api.deleteTask(id)));
+    await loadTasks();
+    setSelectedIds(new Set());
   };
 
   const counts = {
