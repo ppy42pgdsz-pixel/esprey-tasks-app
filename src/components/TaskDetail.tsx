@@ -102,7 +102,15 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
     commitSubtasks(subtasks.map((x) => (x.id === updated.id ? updated : x)));
   };
   const reinstateSubtask = async (s: Subtask) => {
-    const updated = await api.updateSubtask(s.id, { accepted: false });
+    const reason = window.prompt('Sending this back — add a note for the assignee on what still needs doing (optional):', '');
+    if (reason === null) return; // cancelled
+    let payload: { accepted: false; instructions?: string } = { accepted: false };
+    if (reason.trim()) {
+      const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const entry = `[REINSTATED ${stamp}] ${reason.trim()}`;
+      payload = { accepted: false, instructions: s.instructions ? `${s.instructions}\n\n${entry}` : entry };
+    }
+    const updated = await api.updateSubtask(s.id, payload);
     commitSubtasks(subtasks.map((x) => (x.id === updated.id ? updated : x)));
   };
 
@@ -366,6 +374,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
                   <label className="subtask-field">
                     <span className="subtask-field-label">Instructions</span>
                     <textarea
+                      key={`instr-${s.id}:${s.instructions ?? ''}`}
                       className="subtask-notes"
                       rows={2}
                       placeholder="Instructions for the assignee…"
