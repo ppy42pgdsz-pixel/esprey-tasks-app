@@ -79,20 +79,15 @@ export default function TaskList({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [subsByTask, setSubsByTask] = useState<Record<string, Subtask[]>>({});
 
-  // Keep expanded subtask rows in sync when a subtask changes elsewhere
-  // (e.g. the detail panel): if the task's cached subtasks no longer match its
-  // live counts, refetch them.
+  // Whenever the task list refreshes (auto-refresh or an edit), refetch the
+  // subtasks of any expanded rows so their status, assignees, and due dates
+  // never go stale relative to the parent row.
   useEffect(() => {
     expanded.forEach((taskId) => {
-      const task = tasks.find((t) => t.id === taskId);
-      const cached = subsByTask[taskId];
-      if (!task || !cached) return;
-      const cachedDone = cached.filter((s) => s.status === 'done').length;
-      if (cachedDone !== (task.subtask_done ?? 0) || cached.length !== (task.subtask_total ?? 0)) {
-        api.listSubtasks(taskId)
-          .then((subs) => setSubsByTask((prev) => ({ ...prev, [taskId]: subs })))
-          .catch(() => {});
-      }
+      if (!tasks.find((t) => t.id === taskId)) return;
+      api.listSubtasks(taskId)
+        .then((subs) => setSubsByTask((prev) => ({ ...prev, [taskId]: subs })))
+        .catch(() => {});
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, expanded]);
@@ -126,6 +121,18 @@ export default function TaskList({
       <span className="th-inner">{label}<span className="sort-arrow">{arrow(key)}</span></span>
     </th>
   );
+
+  const expandableIds = sorted.filter((t) => (t.subtask_total ?? 0) > 0).map((t) => t.id);
+  const allExpanded = expandableIds.length > 0 && expandableIds.every((id) => expanded.has(id));
+  const toggleAllExpand = async () => {
+    if (allExpanded) { setExpanded(new Set()); return; }
+    setExpanded(new Set(expandableIds));
+    const missing = expandableIds.filter((id) => !subsByTask[id]);
+    const pairs = await Promise.all(
+      missing.map((id) => api.listSubtasks(id).then((s) => [id, s] as const).catch(() => [id, [] as Subtask[]] as const)),
+    );
+    if (pairs.length) setSubsByTask((prev) => ({ ...prev, ...Object.fromEntries(pairs) }));
+  };
 
   const toggleExpand = async (taskId: string) => {
     const willExpand = !expanded.has(taskId);
@@ -166,7 +173,15 @@ export default function TaskList({
   };
 
   return (
-    <table className="task-table">
+    <>
+      {expandableIds.length > 0 && (
+        <div className="list-subcontrols">
+          <button className="link-btn" onClick={toggleAllExpand}>
+            {allExpanded ? '▾ Collapse all subtasks' : '▸ Expand all subtasks'}
+          </button>
+        </div>
+      )}
+      <table className="task-table">
       <thead>
         <tr>
           <th className="col-check">
@@ -305,6 +320,7 @@ export default function TaskList({
           );
         })}
       </tbody>
-    </table>
+      </table>
+    </>
   );
 }
