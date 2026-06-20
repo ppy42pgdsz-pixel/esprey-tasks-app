@@ -2,15 +2,6 @@ import { Fragment, useState, useEffect } from 'react';
 import type { Task, TaskStatus, Subtask, User, Contact } from '../types';
 import { api } from '../api';
 
-const PRIORITY_COLORS: Record<string, string> = {
-  high: '#dc2626',
-  normal: '#a8a29e',
-  low: '#d6d3d1',
-};
-
-const PRIORITY_LABEL: Record<string, string> = { high: 'High', normal: 'Normal', low: 'Low' };
-const PRIORITY_RANK: Record<string, number> = { high: 0, normal: 1, low: 2 };
-
 const STATUS_NEXT: Record<TaskStatus, TaskStatus> = {
   todo: 'in_progress',
   in_progress: 'done',
@@ -19,19 +10,35 @@ const STATUS_NEXT: Record<TaskStatus, TaskStatus> = {
 const STATUS_LABEL: Record<TaskStatus, string> = { todo: 'To Do', in_progress: 'In Progress', done: 'Done' };
 const STATUS_RANK: Record<TaskStatus, number> = { todo: 0, in_progress: 1, done: 2 };
 
-const COL_COUNT = 8; // check, status, title, company, contact, priority, date, actions
+const COL_COUNT = 7; // check, status, title, company, assigned, due, actions
 
-type SortKey = 'status' | 'title' | 'company' | 'contact' | 'priority' | 'date';
+type SortKey = 'status' | 'title' | 'company' | 'due';
 type SortDir = 'asc' | 'desc';
 
-function formatDate(ms: number) {
-  return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+// Distinct soft colours so each company is easy to tell apart at a glance.
+const COMPANY_COLORS: Array<[string, string]> = [
+  ['#e0e7ff', '#3730a3'], ['#fce7f3', '#9d174d'], ['#dcfce7', '#166534'],
+  ['#fef3c7', '#92400e'], ['#dbeafe', '#1e40af'], ['#f3e8ff', '#6b21a8'],
+  ['#ffe4e6', '#9f1239'], ['#ccfbf1', '#115e59'], ['#fee2e2', '#991b1b'], ['#cffafe', '#155e75'],
+];
+function companyColor(key: string): [string, string] {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return COMPANY_COLORS[h % COMPANY_COLORS.length];
 }
 
 // Due dates are stored as UTC midnight (a calendar day, not a moment), so they
-// must be formatted in UTC to avoid shifting a day in non-UTC timezones.
+// must be formatted in UTC to avoid shifting a day in non-UTC timezones. Used
+// for both task and subtask due dates.
 function formatDueDate(ms: number) {
   return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+const todayUtcStart = () => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+// The earliest relevant due date for a task row: its own due date or the
+// soonest open subtask due date.
+function nextDue(task: Task): number | null {
+  const dues = [task.due_date, task.min_subtask_due].filter((d): d is number => typeof d === 'number');
+  return dues.length ? Math.min(...dues) : null;
 }
 
 interface Props {
@@ -70,8 +77,8 @@ export default function TaskList({
   const userName = (email: string) =>
     users.find((u) => u.email.toLowerCase() === email.toLowerCase())?.name ?? email.split('@')[0];
   const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? 'Contact';
-  const [sortKey, setSortKey] = useState<SortKey>('date');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [sortKey, setSortKey] = useState<SortKey>('due');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [subsByTask, setSubsByTask] = useState<Record<string, Subtask[]>>({});
 
@@ -96,11 +103,17 @@ export default function TaskList({
   const sorted = [...tasks].sort((a, b) => {
     let cmp = 0;
     switch (sortKey) {
-      case 'date': cmp = a.created_at - b.created_at; break;
+      case 'due': {
+        // Rows with a due date first (soonest first in asc); undated last.
+        const da = nextDue(a); const db = nextDue(b);
+        if (da == null && db == null) cmp = b.created_at - a.created_at;
+        else if (da == null) cmp = 1;
+        else if (db == null) cmp = -1;
+        else cmp = da - db;
+        break;
+      }
       case 'title': cmp = a.title.localeCompare(b.title); break;
       case 'company': cmp = (a.company_name ?? '').localeCompare(b.company_name ?? ''); break;
-      case 'contact': cmp = (a.contact_name ?? '').localeCompare(b.contact_name ?? ''); break;
-      case 'priority': cmp = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]; break;
       case 'status': cmp = STATUS_RANK[a.status] - STATUS_RANK[b.status]; break;
     }
     return sortDir === 'asc' ? cmp : -cmp;
@@ -108,7 +121,7 @@ export default function TaskList({
 
   const sortBy = (key: SortKey) => {
     if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(key); setSortDir(key === 'date' ? 'desc' : 'asc'); }
+    else { setSortKey(key); setSortDir('asc'); }
   };
   const arrow = (key: SortKey) => (sortKey === key ? (sortDir === 'asc' ? '▲' : '▼') : '');
   const header = (key: SortKey, label: string) => (
@@ -165,9 +178,8 @@ export default function TaskList({
           {header('status', 'Status')}
           {header('title', 'Title')}
           {header('company', 'Company')}
-          {header('contact', 'Contact')}
-          {header('priority', 'Priority')}
-          {header('date', 'Date')}
+          <th>Assigned</th>
+          {header('due', 'Due')}
           <th className="col-actions"></th>
         </tr>
       </thead>
@@ -229,15 +241,33 @@ export default function TaskList({
                   </div>
                 </td>
 
-                <td>{task.company_name ? <span className="tag">{task.company_name}</span> : <span className="cell-muted">—</span>}</td>
-                <td>{task.contact_name ? task.contact_name : <span className="cell-muted">—</span>}</td>
                 <td>
-                  <span className="priority-cell">
-                    <span className="priority-dot" style={{ color: PRIORITY_COLORS[task.priority] }}>●</span>
-                    {PRIORITY_LABEL[task.priority]}
-                  </span>
+                  {task.company_name ? (() => {
+                    const [bg, fg] = companyColor(task.company_id || task.company_name);
+                    return <span className="tag" style={{ background: bg, color: fg }}>{task.company_name}</span>;
+                  })() : <span className="cell-muted">—</span>}
                 </td>
-                <td className="cell-muted">{formatDate(task.created_at)}</td>
+                <td>
+                  {(() => {
+                    const members = (task.assignee_names ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+                    const contactsA = (task.assigned_contact_names ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+                    if (members.length === 0 && contactsA.length === 0) return <span className="cell-muted">—</span>;
+                    return (
+                      <span className="assigned-cell">
+                        {members.map((n) => <span key={`m-${n}`} className="assignee-chip">{n}</span>)}
+                        {contactsA.map((n) => <span key={`c-${n}`} className="assignee-chip contact">{n}</span>)}
+                      </span>
+                    );
+                  })()}
+                </td>
+                <td>
+                  {(() => {
+                    const d = nextDue(task);
+                    if (d == null) return <span className="cell-muted">—</span>;
+                    const overdue = d < todayUtcStart();
+                    return <span className={overdue ? 'due-overdue' : 'cell-muted'}>{formatDueDate(d)}</span>;
+                  })()}
+                </td>
                 <td className="col-actions">
                   <button className="row-open" onClick={(e) => { e.stopPropagation(); onSelect(task); }}>Open</button>
                 </td>

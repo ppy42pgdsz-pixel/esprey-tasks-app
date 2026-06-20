@@ -59,7 +59,10 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND ${visibleSub}) AS subtask_total,
     (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done' AND ${visibleSub}) AS subtask_done,
     (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done' AND s.accepted_at IS NULL) AS pending_signoff,
-    ${archived} AS archived
+    ${archived} AS archived,
+    (SELECT GROUP_CONCAT(DISTINCT u2.name) FROM subtask_assignees sa JOIN subtasks st ON st.id = sa.subtask_id JOIN users u2 ON u2.email = sa.user_email WHERE st.task_id = t.id) AS assignee_names,
+    (SELECT GROUP_CONCAT(DISTINCT c.name) FROM subtask_contacts sc JOIN subtasks st ON st.id = sc.subtask_id JOIN contacts c ON c.id = sc.contact_id WHERE st.task_id = t.id) AS assigned_contact_names,
+    (SELECT MIN(st.due_date) FROM subtasks st WHERE st.task_id = t.id AND st.accepted_at IS NULL AND st.due_date IS NOT NULL) AS min_subtask_due
     FROM tasks t
     LEFT JOIN users u ON u.email = t.owner_email
     WHERE ${conditions.join(' AND ')}

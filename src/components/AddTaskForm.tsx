@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TaskPriority, Company, Contact } from '../types';
+import type { Company, Contact } from '../types';
 import PeoplePicker from './PeoplePicker';
 
 interface Props {
@@ -8,7 +8,6 @@ interface Props {
   onSubmit: (data: {
     title: string;
     description?: string;
-    priority?: TaskPriority;
     company_id?: string;
     company_name?: string;
     contact_id?: string;
@@ -20,7 +19,6 @@ interface Props {
 export default function AddTaskForm({ companies, contacts, onSubmit, onCancel }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('normal');
   const personalId = companies.find((c) => c.name.trim().toLowerCase() === 'personal')?.id ?? '';
   const [companyId, setCompanyId] = useState(personalId); // default to Personal
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -36,7 +34,6 @@ export default function AddTaskForm({ companies, contacts, onSubmit, onCancel }:
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
-        priority,
         company_id: companyId || undefined,
         company_name: selectedCompany?.name,
         contact_id: selectedContact?.id,
@@ -70,16 +67,6 @@ export default function AddTaskForm({ companies, contacts, onSubmit, onCancel }:
         />
 
         <div className="form-row">
-          <select
-            className="select-input"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as TaskPriority)}
-          >
-            <option value="low">Low priority</option>
-            <option value="normal">Normal priority</option>
-            <option value="high">High priority</option>
-          </select>
-
           <div className="company-field">
             <select
               className="select-input"

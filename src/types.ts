@@ -31,6 +31,9 @@ export interface Task {
   pending_signoff?: number; // subtasks marked done but awaiting owner sign-off
   completed_at?: number | null;
   archived?: number; // 1 = completed for the current viewer (owner done, or all my subtasks accepted)
+  assignee_names?: string | null; // comma-joined member names assigned across subtasks
+  assigned_contact_names?: string | null; // comma-joined contact names assigned across subtasks
+  min_subtask_due?: number | null; // earliest due date among open subtasks
 }
 
 export type UserRole = 'admin' | 'member';

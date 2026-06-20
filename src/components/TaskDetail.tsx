@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment, Subtask, User } from '../types';
+import type { Task, TaskStatus, Company, Contact, TaskAttachment, Subtask, User } from '../types';
 import { api } from '../api';
 import PeoplePicker from './PeoplePicker';
 
@@ -188,10 +188,6 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
     onUpdate(updated);
   };
 
-  const handlePriorityChange = async (priority: TaskPriority) => {
-    const updated = await api.updateTask(task.id, { priority });
-    onUpdate(updated);
-  };
 
   const handleCompanyChange = async (companyId: string) => {
     const company = companies.find((c) => c.id === companyId);
@@ -233,16 +229,6 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
           <option value="todo">To Do</option>
           <option value="in_progress">In Progress</option>
           <option value="done">Done</option>
-        </select>
-        <select
-          className="select-input"
-          value={task.priority}
-          disabled={!isOwner}
-          onChange={(e) => handlePriorityChange(e.target.value as TaskPriority)}
-        >
-          <option value="low">Low priority</option>
-          <option value="normal">Normal priority</option>
-          <option value="high">High priority</option>
         </select>
       </div>
 
