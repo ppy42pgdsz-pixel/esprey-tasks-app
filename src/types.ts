@@ -77,8 +77,10 @@ export interface Contact {
 export interface TaskAttachment {
   id: string;
   task_id: string;
+  subtask_id?: string | null;
   filename: string | null;
   mime_type: string | null;
   size: number | null;
+  summary?: string | null;
   created_at: number;
 }

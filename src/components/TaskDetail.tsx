@@ -44,6 +44,8 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
   const [assignOpenFor, setAssignOpenFor] = useState<string | null>(null);
+  const [subAttachments, setSubAttachments] = useState<Record<string, TaskAttachment[]>>({});
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
 
   const selectedContact = contacts.find((c) => c.id === task.contact_id) ?? null;
   const doneCount = subtasks.filter((s) => s.status === 'done').length;
@@ -53,10 +55,33 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
   useEffect(() => {
     api.listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
     api.listSubtasks(task.id)
-      .then((s) => { setSubtasks(s); onSubtaskProgress?.(task.id, s.length, s.filter((x) => x.status === 'done').length); })
+      .then((s) => {
+        setSubtasks(s);
+        onSubtaskProgress?.(task.id, s.length, s.filter((x) => x.status === 'done').length);
+        Promise.all(
+          s.map((st) => api.listSubtaskAttachments(st.id).then((a) => [st.id, a] as const).catch(() => [st.id, []] as const)),
+        ).then((pairs) => setSubAttachments(Object.fromEntries(pairs)));
+      })
       .catch(() => setSubtasks([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
+
+  const canEditSub = (s: Subtask) => isOwner || (s.assignee_emails ?? []).includes(meEmail);
+  const uploadFile = async (s: Subtask, file: File) => {
+    setUploadingFor(s.id);
+    try {
+      const att = await api.uploadSubtaskAttachment(s.id, file);
+      setSubAttachments((prev) => ({ ...prev, [s.id]: [...(prev[s.id] ?? []), att] }));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setUploadingFor(null);
+    }
+  };
+  const removeAttachment = async (s: Subtask, attId: string) => {
+    await api.deleteAttachment(attId);
+    setSubAttachments((prev) => ({ ...prev, [s.id]: (prev[s.id] ?? []).filter((a) => a.id !== attId) }));
+  };
 
   const commitSubtasks = (next: Subtask[]) => {
     setSubtasks(next);
@@ -390,6 +415,30 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
                   defaultValue={s.notes ?? ''}
                   onBlur={(e) => saveSubtaskNotes(s, e.target.value)}
                 />
+                <div className="subtask-files">
+                  {(subAttachments[s.id] ?? []).map((a) => (
+                    <div key={a.id} className="subtask-file">
+                      <div className="subtask-file-row">
+                        <a href={`/api/attachments/${a.id}`} target="_blank" rel="noreferrer" className="file-name">📎 {a.filename}</a>
+                        {canEditSub(s) && (
+                          <button className="subtask-del" onClick={() => removeAttachment(s, a.id)} title="Remove attachment" aria-label="Remove attachment">✕</button>
+                        )}
+                      </div>
+                      {a.summary && <div className="file-summary">{a.summary}</div>}
+                    </div>
+                  ))}
+                  {canEditSub(s) && (
+                    <label className="attach-btn">
+                      {uploadingFor === s.id ? 'Uploading…' : '+ Attach file'}
+                      <input
+                        type="file"
+                        hidden
+                        disabled={uploadingFor !== null}
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(s, f); e.target.value = ''; }}
+                      />
+                    </label>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

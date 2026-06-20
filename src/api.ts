@@ -49,6 +49,20 @@ export const api = {
 
   listAttachments: (taskId: string) =>
     request<TaskAttachment[]>(`/api/tasks/${taskId}/attachments`),
+  listSubtaskAttachments: (subtaskId: string) =>
+    request<TaskAttachment[]>(`/api/subtasks/${subtaskId}/attachments`),
+  uploadSubtaskAttachment: async (subtaskId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`/api/subtasks/${subtaskId}/attachments`, { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json<{ error: string }>().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error);
+    }
+    return res.json<TaskAttachment>();
+  },
+  deleteAttachment: (id: string) =>
+    request<{ ok: boolean }>(`/api/attachments/${id}`, { method: 'DELETE' }),
 
   listCompanies: () => request<Company[]>('/api/companies'),
   createCompany: (name: string) =>
