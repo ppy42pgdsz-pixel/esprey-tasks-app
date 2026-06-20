@@ -49,6 +49,25 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
   const focusedSub = focusSubtaskId ? subtasks.find((s) => s.id === focusSubtaskId) : null;
   const visibleSubtasks = focusSubtaskId ? subtasks.filter((s) => s.id === focusSubtaskId) : subtasks;
 
+  // Deep link that opens a NEW, pre-filled event in the user's own Outlook,
+  // so they stay the organiser and can toggle on a Teams meeting before sending.
+  const outlookComposeUrl = () => {
+    const due = task.due_date ?? null;
+    const d = due ? new Date(due) : new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const y = due ? d.getUTCFullYear() : d.getFullYear();
+    const m = (due ? d.getUTCMonth() : d.getMonth()) + 1;
+    const day = due ? d.getUTCDate() : d.getDate();
+    const date = `${y}-${pad(m)}-${pad(day)}`;
+    const p = new URLSearchParams({
+      subject: task.title,
+      startdt: `${date}T09:00:00`,
+      enddt: `${date}T09:30:00`,
+      body: task.description || '',
+    });
+    return `https://outlook.office.com/calendar/0/deeplink/compose?${p.toString()}`;
+  };
+
   useEffect(() => {
     api.listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
     api.listSubtasks(task.id)
@@ -234,6 +253,9 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
           <option value="in_progress">In Progress</option>
           <option value="done">Done</option>
         </select>
+        <a className="btn-secondary sm" href={outlookComposeUrl()} target="_blank" rel="noreferrer" title="Opens a pre-filled new event in your Outlook — you can add a Teams meeting there">
+          📅 Add to my Outlook
+        </a>
       </div>
 
       {/* Company */}
