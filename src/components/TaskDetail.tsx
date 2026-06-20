@@ -68,6 +68,40 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
     return `https://outlook.office.com/calendar/0/deeplink/compose?${p.toString()}`;
   };
 
+  // Download a calendar file that opens in the user's DEFAULT desktop calendar
+  // app (e.g. Outlook desktop). They save it to their own calendar and can then
+  // add a Teams meeting + attendees.
+  const downloadInvite = () => {
+    const due = task.due_date ?? null;
+    const d = due ? new Date(due) : new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const y = due ? d.getUTCFullYear() : d.getFullYear();
+    const mo = (due ? d.getUTCMonth() : d.getMonth()) + 1;
+    const da = due ? d.getUTCDate() : d.getDate();
+    const ymd = `${y}${pad(mo)}${pad(da)}`;
+    const dtstamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const esc = (t: string) => t.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+    const ics = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Esprey Tasks//EN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+      `UID:${task.id}-${Date.now()}@esprey.net`,
+      `DTSTAMP:${dtstamp}`,
+      `DTSTART:${ymd}T090000`,
+      `DTEND:${ymd}T093000`,
+      `SUMMARY:${esc(task.title)}`,
+      task.description ? `DESCRIPTION:${esc(task.description)}` : '',
+      'END:VEVENT', 'END:VCALENDAR',
+    ].filter(Boolean).join('\r\n');
+    const blob = new Blob([ics], { type: 'text/calendar' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${task.title.replace(/[^\w]+/g, '_').slice(0, 40) || 'event'}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   useEffect(() => {
     api.listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
     api.listSubtasks(task.id)
@@ -253,9 +287,10 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
           <option value="in_progress">In Progress</option>
           <option value="done">Done</option>
         </select>
-        <a className="btn-secondary sm" href={outlookComposeUrl()} target="_blank" rel="noreferrer" title="Opens a pre-filled new event in your Outlook — you can add a Teams meeting there">
+        <button className="btn-secondary sm" onClick={downloadInvite} title="Downloads a calendar file that opens in your desktop calendar app; add a Teams meeting there">
           📅 Add to my Outlook
-        </a>
+        </button>
+        <a className="link-btn" href={outlookComposeUrl()} target="_blank" rel="noreferrer" title="Open in web Outlook instead">web</a>
       </div>
 
       {/* Company */}
