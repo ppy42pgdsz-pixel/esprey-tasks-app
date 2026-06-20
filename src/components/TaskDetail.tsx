@@ -147,9 +147,11 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
     const updated = await api.updateSubtask(s.id, { due_date: ms });
     setSubtasks((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
   };
+  // Store and read dates as UTC midnight so the calendar day never shifts by
+  // timezone (the date input is a plain calendar date, not a moment in time).
   const toDateInput = (ms?: number | null) => (ms ? new Date(ms).toISOString().slice(0, 10) : '');
-  const fromDateInput = (v: string) => (v ? new Date(`${v}T00:00:00`).getTime() : null);
-  const fmtDue = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const fromDateInput = (v: string) => (v ? Date.parse(`${v}T00:00:00Z`) : null);
+  const fmtDue = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
   const handleGenerateReply = async () => {
     setGeneratingReply(true);

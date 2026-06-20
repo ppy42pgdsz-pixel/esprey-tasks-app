@@ -92,7 +92,8 @@ async function purgeOldCompleted(env: Env): Promise<number> {
 const DUE_SOON_MS = 3 * 24 * 60 * 60 * 1000; // "due soon" = within 3 days (or overdue)
 
 function fmtDate(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  // Due dates are stored as UTC midnight — format in UTC to keep the day stable.
+  return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 function dueLabel(ms: number, now: number): string {
   const d = fmtDate(ms);

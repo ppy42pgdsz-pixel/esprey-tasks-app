@@ -13,7 +13,7 @@ interface Env {
 }
 
 const DUE_SOON_MS = 3 * 24 * 60 * 60 * 1000;
-const fmtDate = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const fmtDate = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 const dueLabel = (ms: number, now: number) => (ms < now ? `${fmtDate(ms)} (overdue)` : fmtDate(ms));
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 

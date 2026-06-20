@@ -28,6 +28,12 @@ function formatDate(ms: number) {
   return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
+// Due dates are stored as UTC midnight (a calendar day, not a moment), so they
+// must be formatted in UTC to avoid shifting a day in non-UTC timezones.
+function formatDueDate(ms: number) {
+  return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
 interface Props {
   tasks: Task[];
   selected: Task | null;
@@ -268,7 +274,7 @@ export default function TaskList({
                       {(s.contact_ids ?? []).map((cid) => (
                         <span key={cid} className="assignee-chip contact">{contactName(cid)}</span>
                       ))}
-                      {s.due_date && <span className="due-chip">Due {formatDate(s.due_date)}</span>}
+                      {s.due_date && <span className="due-chip">Due {formatDueDate(s.due_date)}</span>}
                       <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>
                     </div>
                   </td>
