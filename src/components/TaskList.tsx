@@ -38,6 +38,7 @@ interface Props {
   tasks: Task[];
   selected: Task | null;
   onSelect: (task: Task) => void;
+  onSelectSubtask: (task: Task, subtaskId: string) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
@@ -54,6 +55,7 @@ export default function TaskList({
   tasks,
   selected,
   onSelect,
+  onSelectSubtask,
   onStatusChange,
   selectedIds,
   onToggleSelect,
@@ -260,8 +262,8 @@ export default function TaskList({
                       </span>
                       <span
                         className="subtask-row-text clickable"
-                        onClick={() => onSelect(task)}
-                        title="Open task to assign or add notes"
+                        onClick={() => onSelectSubtask(task, s.id)}
+                        title="Open this subtask"
                       >
                         {s.text}
                       </span>

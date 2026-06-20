@@ -49,6 +49,16 @@ export const api = {
 
   listAttachments: (taskId: string) =>
     request<TaskAttachment[]>(`/api/tasks/${taskId}/attachments`),
+  uploadTaskAttachment: async (taskId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`/api/tasks/${taskId}/attachments`, { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json<{ error: string }>().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error);
+    }
+    return res.json<TaskAttachment>();
+  },
   listSubtaskAttachments: (subtaskId: string) =>
     request<TaskAttachment[]>(`/api/subtasks/${subtaskId}/attachments`),
   uploadSubtaskAttachment: async (subtaskId: string, file: File) => {

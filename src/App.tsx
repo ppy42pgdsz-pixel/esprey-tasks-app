@@ -22,6 +22,10 @@ export default function App() {
   const [filterCompany, setFilterCompany] = useState<string>('');
   const [filterContact, setFilterContact] = useState<string>('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
+  const openTask = (task: Task) => { setFocusedSubtaskId(null); setSelectedTask(task); };
+  const openSubtask = (task: Task, subtaskId: string) => { setFocusedSubtaskId(subtaskId); setSelectedTask(task); };
+  const closeDetail = () => { setSelectedTask(null); setFocusedSubtaskId(null); };
   const [showAddForm, setShowAddForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -421,7 +425,8 @@ export default function App() {
           <TaskList
             tasks={visibleTasks}
             selected={selectedTask}
-            onSelect={setSelectedTask}
+            onSelect={openTask}
+            onSelectSubtask={openSubtask}
             onStatusChange={handleStatusChange}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
@@ -437,19 +442,20 @@ export default function App() {
       </main>
 
       {selectedTask && (
-        <div className="detail-overlay" onClick={() => setSelectedTask(null)}>
+        <div className="detail-overlay" onClick={closeDetail}>
           <div className="detail-slideover" onClick={(e) => e.stopPropagation()}>
             <TaskDetail
-              key={selectedTask.id}
+              key={`${selectedTask.id}:${focusedSubtaskId ?? ''}`}
               task={selectedTask}
               companies={companies}
               contacts={contacts}
               me={me}
               users={users}
-              onClose={() => setSelectedTask(null)}
+              onClose={closeDetail}
               onUpdate={handleTaskUpdate}
               onDelete={handleDelete}
               onSubtaskProgress={handleSubtaskProgress}
+              focusSubtaskId={focusedSubtaskId}
             />
           </div>
         </div>

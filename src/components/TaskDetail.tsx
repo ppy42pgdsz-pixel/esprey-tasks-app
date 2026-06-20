@@ -32,15 +32,12 @@ interface Props {
   onUpdate: (task: Task) => void;
   onDelete: (task: Task) => void;
   onSubtaskProgress?: (taskId: string, total: number, done: number, pending?: number) => void;
+  focusSubtaskId?: string | null;
 }
 
-export default function TaskDetail({ task, companies, contacts, me, users, onClose, onUpdate, onDelete, onSubtaskProgress }: Props) {
-  const [generatingReply, setGeneratingReply] = useState(false);
-  const [editingReply, setEditingReply] = useState(false);
-  const [replyText, setReplyText] = useState(task.draft_reply ?? '');
-  const [editingDesc, setEditingDesc] = useState(false);
-  const [descText, setDescText] = useState(task.description);
+export default function TaskDetail({ task, companies, contacts, me, users, onClose, onUpdate, onDelete, onSubtaskProgress, focusSubtaskId }: Props) {
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [uploadingTask, setUploadingTask] = useState(false);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
   const [assignOpenFor, setAssignOpenFor] = useState<string | null>(null);
@@ -51,6 +48,9 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
   const doneCount = subtasks.filter((s) => s.status === 'done').length;
   const meEmail = (me?.email ?? '').toLowerCase();
   const isOwner = meEmail === (task.owner_email ?? '').toLowerCase();
+  // Focused mode: show only one subtask's details (clicked from the list).
+  const focusedSub = focusSubtaskId ? subtasks.find((s) => s.id === focusSubtaskId) : null;
+  const visibleSubtasks = focusSubtaskId ? subtasks.filter((s) => s.id === focusSubtaskId) : subtasks;
 
   useEffect(() => {
     api.listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
@@ -158,27 +158,25 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
   const fromDateInput = (v: string) => (v ? Date.parse(`${v}T00:00:00Z`) : null);
   const fmtDue = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
-  const handleGenerateReply = async () => {
-    setGeneratingReply(true);
+  const saveDesc = async (value: string) => {
+    if (value === task.description) return;
+    const updated = await api.updateTask(task.id, { description: value });
+    onUpdate(updated);
+  };
+  const uploadTaskFile = async (file: File) => {
+    setUploadingTask(true);
     try {
-      const { draft_reply } = await api.generateDraftReply(task.id);
-      setReplyText(draft_reply);
-      onUpdate({ ...task, draft_reply });
+      const att = await api.uploadTaskAttachment(task.id, file);
+      setAttachments((prev) => [...prev, att]);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Upload failed');
     } finally {
-      setGeneratingReply(false);
+      setUploadingTask(false);
     }
   };
-
-  const handleSaveReply = async () => {
-    const updated = await api.updateTask(task.id, { draft_reply: replyText });
-    onUpdate(updated);
-    setEditingReply(false);
-  };
-
-  const handleSaveDesc = async () => {
-    const updated = await api.updateTask(task.id, { description: descText });
-    onUpdate(updated);
-    setEditingDesc(false);
+  const removeTaskAttachment = async (attId: string) => {
+    await api.deleteAttachment(attId);
+    setAttachments((prev) => prev.filter((a) => a.id !== attId));
   };
 
   const handleStatusChange = async (status: TaskStatus) => {
@@ -212,15 +210,19 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
     onUpdate(updated);
   };
 
-  const copyToClipboard = (text: string) => navigator.clipboard.writeText(text);
 
   return (
     <aside className="task-detail">
       <div className="detail-header">
-        <h2 className="detail-title">{task.title}</h2>
+        <h2 className="detail-title">{focusSubtaskId ? (focusedSub?.text ?? 'Subtask') : task.title}</h2>
         <button className="close-btn" onClick={onClose}>×</button>
       </div>
+      {focusSubtaskId && (
+        <p className="muted" style={{ marginTop: '-4px' }}>Subtask of “{task.title}”</p>
+      )}
 
+      {!focusSubtaskId && (
+      <>
       <div className="detail-controls">
         <select
           className="select-input"
@@ -303,15 +305,17 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
           <p className="section-value">{task.owner_name || task.owner_email}</p>
         </div>
       )}
+      </>
+      )}
 
-      {/* Subtasks */}
+      {/* Subtasks (filtered to one in focused mode) */}
       <div className="detail-section">
         <div className="section-label">
-          Subtasks{subtasks.length > 0 ? ` · ${doneCount}/${subtasks.length}` : ''}
+          {focusSubtaskId ? 'Subtask' : `Subtasks${subtasks.length > 0 ? ` · ${doneCount}/${subtasks.length}` : ''}`}
         </div>
-        {subtasks.length > 0 && (
+        {visibleSubtasks.length > 0 && (
           <ul className="subtask-list">
-            {subtasks.map((s) => (
+            {visibleSubtasks.map((s) => (
               <li key={s.id} className={`subtask-item ${s.status === 'done' ? 'done' : ''}`}>
                 <div className="subtask-titlerow">
                   <span
@@ -443,7 +447,7 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
             ))}
           </ul>
         )}
-        {isOwner && (
+        {isOwner && !focusSubtaskId && (
           <div className="subtask-add mt">
             <textarea
               className="textarea"
@@ -459,109 +463,85 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
         )}
       </div>
 
-      {attachments.length > 0 && (
+      {/* Shared task files shown read-only in focused subtask mode */}
+      {focusSubtaskId && attachments.length > 0 && (
         <div className="detail-section">
-          <div className="section-label">Attachments</div>
-          <div className="attachment-list">
-            {attachments.map((a) => {
-              const url = `/api/attachments/${a.id}`;
-              const mime = a.mime_type ?? '';
-              const isImage = mime.startsWith('image/');
-              const badge = mime === 'application/pdf' ? 'PDF' : mime === 'message/rfc822' ? 'EML' : 'FILE';
-              return (
-                <a key={a.id} className="attachment-item" href={url} target="_blank" rel="noopener noreferrer">
-                  {isImage ? (
-                    <img className="attachment-thumb" src={url} alt={a.filename ?? 'attachment'} />
-                  ) : (
-                    <span className="attachment-icon">{badge}</span>
-                  )}
-                  <span className="attachment-name">{a.filename ?? 'attachment'}</span>
-                </a>
-              );
-            })}
+          <div className="section-label">Shared files <span className="muted">(from the main task)</span></div>
+          <div className="subtask-files">
+            {attachments.map((a) => (
+              <div key={a.id} className="subtask-file">
+                <div className="subtask-file-row">
+                  <a href={`/api/attachments/${a.id}`} target="_blank" rel="noreferrer" className="file-name">📎 {a.filename}</a>
+                </div>
+                {a.summary && <div className="file-summary">{a.summary}</div>}
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      <div className="detail-section">
-        <div className="section-label-row">
-          <span className="section-label">Notes</span>
-          {isOwner && (
-            <button
-              className="link-btn"
-              onClick={() => {
-                if (!editingDesc) setDescText(task.description);
-                setEditingDesc(!editingDesc);
-              }}
-            >
-              {editingDesc ? 'cancel' : 'edit'}
-            </button>
-          )}
-        </div>
-        {editingDesc ? (
-          <div>
-            <textarea
-              className="textarea"
-              value={descText}
-              onChange={(e) => setDescText(e.target.value)}
-              rows={4}
-            />
-            <button className="btn-primary sm" onClick={handleSaveDesc}>Save</button>
+      {!focusSubtaskId && (
+        <>
+          {/* Task files — shared across all subtasks */}
+          <div className="detail-section">
+            <div className="section-label">Files <span className="muted">· shared across subtasks</span></div>
+            <div className="subtask-files">
+              {attachments.map((a) => (
+                <div key={a.id} className="subtask-file">
+                  <div className="subtask-file-row">
+                    <a href={`/api/attachments/${a.id}`} target="_blank" rel="noreferrer" className="file-name">📎 {a.filename}</a>
+                    {isOwner && (
+                      <button className="subtask-del" onClick={() => removeTaskAttachment(a.id)} title="Remove file" aria-label="Remove file">✕</button>
+                    )}
+                  </div>
+                  {a.summary && <div className="file-summary">{a.summary}</div>}
+                </div>
+              ))}
+              <label className="attach-btn">
+                {uploadingTask ? 'Uploading…' : '+ Attach file'}
+                <input
+                  type="file"
+                  hidden
+                  disabled={uploadingTask}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadTaskFile(f); e.target.value = ''; }}
+                />
+              </label>
+            </div>
           </div>
-        ) : (
-          <div className="section-value" style={{ whiteSpace: 'pre-wrap' }}>
-            {task.description || <span className="muted">No notes</span>}
-          </div>
-        )}
-      </div>
 
-      {task.source === 'email' && task.original_body && (
-        <div className="detail-section">
-          <div className="section-label">Original email</div>
-          <div className="original-body">{task.original_body}</div>
-        </div>
-      )}
-
-      {isOwner && (
-      <div className="detail-section">
-        <div className="section-label-row">
-          <span className="section-label">Draft reply</span>
-          <div className="section-actions">
-            {replyText && (
-              <>
-                <button className="link-btn" onClick={() => copyToClipboard(replyText)}>copy</button>
-                <button className="link-btn" onClick={() => setEditingReply(!editingReply)}>
-                  {editingReply ? 'cancel' : 'edit'}
-                </button>
-              </>
+          {/* Notes — always-visible text box */}
+          <div className="detail-section">
+            <div className="section-label">Notes</div>
+            {isOwner ? (
+              <textarea
+                className="textarea"
+                rows={4}
+                placeholder="Add notes…"
+                defaultValue={task.description}
+                onBlur={(e) => saveDesc(e.target.value)}
+              />
+            ) : (
+              <div className="section-value" style={{ whiteSpace: 'pre-wrap' }}>
+                {task.description || <span className="muted">No notes</span>}
+              </div>
             )}
-            <button className="link-btn" onClick={handleGenerateReply} disabled={generatingReply}>
-              {generatingReply ? 'generating…' : replyText ? 'regenerate' : 'generate'}
-            </button>
           </div>
-        </div>
 
-        {editingReply ? (
-          <div>
-            <textarea className="textarea" value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={8} />
-            <button className="btn-primary sm" onClick={handleSaveReply}>Save</button>
-          </div>
-        ) : replyText ? (
-          <div className="draft-reply">{replyText}</div>
-        ) : (
-          <div className="muted section-value">
-            {task.source === 'email' ? 'Click generate to draft a reply with Claude.' : 'Add email context to generate a reply.'}
-          </div>
-        )}
-      </div>
-      )}
+          {task.source === 'email' && task.original_body && (
+            <div className="detail-section">
+              <div className="section-label">Original email</div>
+              <div className="original-body">{task.original_body}</div>
+            </div>
+          )}
 
-      {isOwner && (
-        <div className="detail-footer">
-          <button className="btn-danger" onClick={() => { if (confirm('Delete this task?')) onDelete(task); }}>
-            Delete task
-          </button>
-        </div>
+          {isOwner && (
+            <div className="detail-footer">
+              <button className="btn-danger" onClick={() => { if (confirm('Delete this task?')) onDelete(task); }}>
+                Delete task
+              </button>
+            </div>
+          )}
+        </>
       )}
     </aside>
   );
