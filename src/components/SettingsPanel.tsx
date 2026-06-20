@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Company, Contact, User, UserRole } from '../types';
+import { api } from '../api';
 
 interface Props {
   companies: Company[];
@@ -33,6 +34,26 @@ export default function SettingsPanel(props: Props) {
 
   const isAdmin = me?.role === 'admin';
   const [view, setView] = useState<'menu' | 'team'>('menu');
+
+  // Daily digest manual send
+  const [digestBusy, setDigestBusy] = useState<'me' | 'all' | null>(null);
+  const [digestMsg, setDigestMsg] = useState<string | null>(null);
+  const runDigest = async (all: boolean) => {
+    setDigestBusy(all ? 'all' : 'me');
+    setDigestMsg(null);
+    try {
+      const r = await api.sendDigest(all);
+      setDigestMsg(
+        r.sent === 0
+          ? 'Nobody had anything pending, so no emails were sent.'
+          : `Sent ${r.sent} email${r.sent === 1 ? '' : 's'}${all ? ` (${r.recipients - r.sent} had nothing pending and were skipped)` : ''}.`,
+      );
+    } catch (e) {
+      setDigestMsg(e instanceof Error ? e.message : 'Failed to send.');
+    } finally {
+      setDigestBusy(null);
+    }
+  };
 
   // Companies
   const [newCompany, setNewCompany] = useState('');
@@ -214,6 +235,28 @@ export default function SettingsPanel(props: Props) {
               <div><strong>Manage team members</strong> <span className="muted">· add or remove people who can sign in</span></div>
               <button className="btn-primary" onClick={() => setView('team')}>Open</button>
             </div>
+          </section>
+        )}
+
+        {isAdmin && (
+          <section className="settings-card">
+            <div className="settings-card-label">Daily digest</div>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Every morning the app automatically emails each person a summary of what's on their plate — items awaiting their sign-off, subtasks assigned to them, and anything due soon. Anyone with nothing pending isn't emailed. The buttons below send it right now instead of waiting for the morning.
+            </p>
+            <div className="settings-card-row">
+              <div><strong>Send everyone their digest now</strong> <span className="muted">· each person gets their own summary; people with nothing pending are skipped</span></div>
+              <button className="btn-primary" onClick={() => runDigest(true)} disabled={digestBusy !== null}>
+                {digestBusy === 'all' ? 'Sending…' : 'Send to everyone'}
+              </button>
+            </div>
+            <div className="settings-card-row">
+              <div><strong>Send me a preview</strong> <span className="muted">· emails only you, to see what it looks like</span></div>
+              <button className="btn-secondary" onClick={() => runDigest(false)} disabled={digestBusy !== null}>
+                {digestBusy === 'me' ? 'Sending…' : 'Send to me'}
+              </button>
+            </div>
+            {digestMsg && <p className="muted center" style={{ marginTop: 8 }}>{digestMsg}</p>}
           </section>
         )}
 

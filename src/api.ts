@@ -97,4 +97,7 @@ export const api = {
     request<{ ok: boolean }>(`/api/users/${encodeURIComponent(email)}/aliases?alias=${encodeURIComponent(alias)}`, { method: 'DELETE' }),
   setUserCompanies: (email: string, company_ids: string[]) =>
     request<{ ok: boolean; company_ids: string[] }>(`/api/users/${encodeURIComponent(email)}/companies`, { method: 'PUT', body: JSON.stringify({ company_ids }) }),
+
+  sendDigest: (all: boolean) =>
+    request<{ sent: number; skipped: string[]; recipients: number }>(`/api/admin/send-digest?confirm=yes${all ? '&all=yes' : ''}`),
 };
