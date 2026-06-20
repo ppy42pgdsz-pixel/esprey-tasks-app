@@ -32,10 +32,9 @@ interface Props {
   onUpdate: (task: Task) => void;
   onDelete: (task: Task) => void;
   onSubtaskProgress?: (taskId: string, total: number, done: number, pending?: number) => void;
-  onShareChange?: (taskId: string, visibility: 'private' | 'shared') => void;
 }
 
-export default function TaskDetail({ task, companies, contacts, me, users, onClose, onUpdate, onDelete, onSubtaskProgress, onShareChange }: Props) {
+export default function TaskDetail({ task, companies, contacts, me, users, onClose, onUpdate, onDelete, onSubtaskProgress }: Props) {
   const [generatingReply, setGeneratingReply] = useState(false);
   const [editingReply, setEditingReply] = useState(false);
   const [replyText, setReplyText] = useState(task.draft_reply ?? '');
@@ -45,38 +44,19 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
   const [assignOpenFor, setAssignOpenFor] = useState<string | null>(null);
-  const [shareVisibility, setShareVisibility] = useState<'private' | 'shared'>(task.visibility ?? 'private');
-  const [shareEmails, setShareEmails] = useState<string[]>([]);
-  const [savingShare, setSavingShare] = useState(false);
 
   const selectedContact = contacts.find((c) => c.id === task.contact_id) ?? null;
   const doneCount = subtasks.filter((s) => s.status === 'done').length;
   const meEmail = (me?.email ?? '').toLowerCase();
   const isOwner = meEmail === (task.owner_email ?? '').toLowerCase();
-  const shareableUsers = users.filter((u) => u.email.toLowerCase() !== meEmail);
 
   useEffect(() => {
     api.listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
     api.listSubtasks(task.id)
       .then((s) => { setSubtasks(s); onSubtaskProgress?.(task.id, s.length, s.filter((x) => x.status === 'done').length); })
       .catch(() => setSubtasks([]));
-    api.getShare(task.id)
-      .then((s) => { setShareVisibility(s.visibility); setShareEmails(s.user_emails); })
-      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
-
-  const saveShare = async (visibility: 'private' | 'shared', emails: string[]) => {
-    setSavingShare(true);
-    try {
-      const res = await api.setShare(task.id, { visibility, user_emails: emails });
-      setShareVisibility(res.visibility);
-      setShareEmails(res.user_emails);
-      onShareChange?.(task.id, res.visibility);
-    } finally {
-      setSavingShare(false);
-    }
-  };
 
   const commitSubtasks = (next: Subtask[]) => {
     setSubtasks(next);
@@ -291,55 +271,13 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
         </div>
       )}
 
-      {/* Sharing */}
-      <div className="detail-section">
-        <div className="section-label">Sharing</div>
-        {isOwner ? (
-          <>
-            <select
-              className="select-input"
-              value={shareVisibility}
-              disabled={savingShare}
-              onChange={(e) => {
-                const v = e.target.value as 'private' | 'shared';
-                saveShare(v, v === 'shared' ? shareEmails : []);
-              }}
-            >
-              <option value="private">Private — only me</option>
-              <option value="shared">Shared</option>
-            </select>
-            {shareVisibility === 'shared' && (
-              <div className="share-people mt">
-                {shareableUsers.length === 0 ? (
-                  <p className="muted">No teammates yet — add them in Settings → Team.</p>
-                ) : (
-                  shareableUsers.map((u) => {
-                    const checked = shareEmails.includes(u.email.toLowerCase());
-                    return (
-                      <label key={u.email} className="checkbox-label share-person">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={savingShare}
-                          onChange={() => {
-                            const em = u.email.toLowerCase();
-                            const next = checked ? shareEmails.filter((x) => x !== em) : [...shareEmails, em];
-                            setShareEmails(next);
-                            saveShare('shared', next);
-                          }}
-                        />
-                        {u.name} <span className="muted">{u.email}</span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </>
-        ) : (
-          <p className="section-value">Owned by {task.owner_name || task.owner_email}{shareVisibility === 'shared' ? ' · shared with you' : ''}.</p>
-        )}
-      </div>
+      {/* Owner (shown to people who reach this task via a subtask assigned to them) */}
+      {!isOwner && (
+        <div className="detail-section">
+          <div className="section-label">Owner</div>
+          <p className="section-value">{task.owner_name || task.owner_email}</p>
+        </div>
+      )}
 
       {/* Subtasks */}
       <div className="detail-section">

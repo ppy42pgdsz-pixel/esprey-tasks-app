@@ -218,9 +218,6 @@ export default function TaskList({
                     {task.owner_email && task.owner_email.toLowerCase() !== meEmail && (
                       <span className="tag owner-tag">from {task.owner_name || task.owner_email}</span>
                     )}
-                    {task.owner_email && task.owner_email.toLowerCase() === meEmail && task.visibility === 'shared' && (
-                      <span className="tag">shared</span>
-                    )}
                     {hasSubs && (
                       <span className="subtask-badge">☑ {task.subtask_done ?? 0}/{task.subtask_total}</span>
                     )}
