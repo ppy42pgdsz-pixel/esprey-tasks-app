@@ -625,6 +625,11 @@ body {
   background: #fef3c7; color: #92400e;
 }
 
+.subtask-field { display: flex; flex-direction: column; gap: 3px; }
+.subtask-field-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #78716c; }
+.subtask-field-label .muted { font-weight: 500; text-transform: none; letter-spacing: 0; }
+.subtask-readonly { font-size: 13px; color: #292524; white-space: pre-wrap; background: #fafaf9; border: 1px solid #e7e5e4; border-radius: 6px; padding: 6px 8px; }
+
 .subtask-notes {
   width: 100%; box-sizing: border-box;
   border: 1px solid #e7e5e4; border-radius: 6px;

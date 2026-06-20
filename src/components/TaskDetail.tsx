@@ -139,6 +139,16 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
     await api.updateSubtask(s.id, { notes });
     setSubtasks((prev) => prev.map((x) => (x.id === s.id ? { ...x, notes } : x)));
   };
+  const saveSubtaskInstructions = async (s: Subtask, instructions: string) => {
+    if ((s.instructions ?? '') === instructions) return;
+    await api.updateSubtask(s.id, { instructions });
+    setSubtasks((prev) => prev.map((x) => (x.id === s.id ? { ...x, instructions } : x)));
+  };
+  const saveSubtaskCompletion = async (s: Subtask, completion_note: string) => {
+    if ((s.completion_note ?? '') === completion_note) return;
+    await api.updateSubtask(s.id, { completion_note });
+    setSubtasks((prev) => prev.map((x) => (x.id === s.id ? { ...x, completion_note } : x)));
+  };
   const saveSubtaskDue = async (s: Subtask, ms: number | null) => {
     const updated = await api.updateSubtask(s.id, { due_date: ms });
     setSubtasks((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
@@ -351,13 +361,63 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
                     </div>
                   </div>
                 )}
-                <textarea
-                  className="subtask-notes"
-                  rows={2}
-                  placeholder="Shared notes for this subtask…"
-                  defaultValue={s.notes ?? ''}
-                  onBlur={(e) => saveSubtaskNotes(s, e.target.value)}
-                />
+                {/* Instructions — owner writes, member reads */}
+                {isOwner ? (
+                  <label className="subtask-field">
+                    <span className="subtask-field-label">Instructions</span>
+                    <textarea
+                      className="subtask-notes"
+                      rows={2}
+                      placeholder="Instructions for the assignee…"
+                      defaultValue={s.instructions ?? ''}
+                      onBlur={(e) => saveSubtaskInstructions(s, e.target.value)}
+                    />
+                  </label>
+                ) : s.instructions ? (
+                  <div className="subtask-field">
+                    <span className="subtask-field-label">Instructions</span>
+                    <div className="subtask-readonly">{s.instructions}</div>
+                  </div>
+                ) : null}
+
+                {/* Notes — the member's own working notes (owner can read) */}
+                {(s.assignee_emails ?? []).includes(meEmail) ? (
+                  <label className="subtask-field">
+                    <span className="subtask-field-label">Notes</span>
+                    <textarea
+                      className="subtask-notes"
+                      rows={2}
+                      placeholder="Your notes…"
+                      defaultValue={s.notes ?? ''}
+                      onBlur={(e) => saveSubtaskNotes(s, e.target.value)}
+                    />
+                  </label>
+                ) : s.notes ? (
+                  <div className="subtask-field">
+                    <span className="subtask-field-label">Member notes</span>
+                    <div className="subtask-readonly">{s.notes}</div>
+                  </div>
+                ) : null}
+
+                {/* Completion note — member writes when marking done; owner reads at sign-off */}
+                {(s.assignee_emails ?? []).includes(meEmail) ? (
+                  <label className="subtask-field">
+                    <span className="subtask-field-label">Completion note <span className="muted">· sent to the owner when you mark this done</span></span>
+                    <textarea
+                      className="subtask-notes"
+                      rows={2}
+                      placeholder="What you did / anything to hand back…"
+                      defaultValue={s.completion_note ?? ''}
+                      onBlur={(e) => saveSubtaskCompletion(s, e.target.value)}
+                    />
+                  </label>
+                ) : s.completion_note ? (
+                  <div className="subtask-field">
+                    <span className="subtask-field-label">Completion note</span>
+                    <div className="subtask-readonly">{s.completion_note}</div>
+                  </div>
+                ) : null}
+
                 <div className="subtask-files">
                   {(subAttachments[s.id] ?? []).map((a) => (
                     <div key={a.id} className="subtask-file">

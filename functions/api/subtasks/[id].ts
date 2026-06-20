@@ -33,7 +33,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const canUpdate = owner || (await isSubtaskAssignee(ctx.env.DB, id, me));
   if (!canUpdate) return json({ error: 'Not allowed to edit this subtask' }, 403);
 
-  const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus; notes?: string; accepted?: boolean; due_date?: number | null }>();
+  const body = await ctx.request.json<{ text?: string; done?: boolean; status?: SubStatus; notes?: string; accepted?: boolean; due_date?: number | null; instructions?: string; completion_note?: string }>();
 
   const updates: string[] = [];
   const values: unknown[] = [];
@@ -53,6 +53,15 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   if ('notes' in body) {
     updates.push('notes = ?');
     values.push((body.notes ?? '').slice(0, 5000));
+  }
+  if ('instructions' in body) {
+    if (!owner) return json({ error: 'Only the owner can write instructions' }, 403);
+    updates.push('instructions = ?');
+    values.push((body.instructions ?? '').slice(0, 5000));
+  }
+  if ('completion_note' in body) {
+    updates.push('completion_note = ?');
+    values.push((body.completion_note ?? '').slice(0, 5000));
   }
 
   // Owner sign-off: accept (lock as done + stamp) or reinstate (back to in progress).

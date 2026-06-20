@@ -56,6 +56,8 @@ export interface Subtask {
   position: number;
   created_at: number;
   notes?: string;
+  instructions?: string; // owner → assignee (member read-only)
+  completion_note?: string; // member writes when marking done; owner reads at sign-off
   assignee_emails?: string[];
   contact_ids?: string[];
   accepted_at?: number | null; // set when the owner signs off; null = awaiting sign-off
