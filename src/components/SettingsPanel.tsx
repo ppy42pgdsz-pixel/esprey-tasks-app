@@ -1,19 +1,15 @@
 import { useState } from 'react';
-import type { Company, Contact, User, UserRole } from '../types';
+import type { Company, User, UserRole } from '../types';
 import { api } from '../api';
 
 interface Props {
   companies: Company[];
-  contacts: Contact[];
   me: { email: string; name: string; role: UserRole } | null;
   users: User[];
   onClose: () => void;
   onCreateCompany: (name: string) => Promise<Company>;
   onRenameCompany: (id: string, name: string) => Promise<void>;
   onDeleteCompany: (id: string) => Promise<void>;
-  onCreateContact: (data: { name: string; email?: string; company_id?: string; is_favourite?: boolean }) => Promise<Contact>;
-  onUpdateContact: (id: string, data: { name?: string; email?: string | null; company_id?: string | null; is_favourite?: boolean }) => Promise<void>;
-  onDeleteContact: (id: string) => Promise<void>;
   onCreateUser: (data: { name: string; email: string; role: UserRole }) => Promise<void>;
   onUpdateUser: (email: string, data: { name?: string; role?: UserRole }) => Promise<void>;
   onDeleteUser: (email: string, wipe?: boolean) => Promise<void>;
@@ -22,13 +18,10 @@ interface Props {
   onSetUserCompanies: (email: string, companyIds: string[]) => Promise<void>;
 }
 
-interface ContactDraft { name: string; email: string; company_id: string; }
-
 export default function SettingsPanel(props: Props) {
   const {
-    companies, contacts, me, users, onClose,
+    companies, me, users, onClose,
     onCreateCompany, onRenameCompany, onDeleteCompany,
-    onCreateContact, onUpdateContact, onDeleteContact,
     onCreateUser, onDeleteUser, onAddAlias, onRemoveAlias, onSetUserCompanies,
   } = props;
 
@@ -60,16 +53,11 @@ export default function SettingsPanel(props: Props) {
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [editingCompanyName, setEditingCompanyName] = useState('');
 
-  // Contacts
-  const [newContact, setNewContact] = useState<ContactDraft>({ name: '', email: '', company_id: '' });
-  const [newContactFav, setNewContactFav] = useState(false);
-
   // Team
   const [newUser, setNewUser] = useState<{ name: string; email: string; role: UserRole }>({ name: '', email: '', role: 'member' });
   const [aliasInput, setAliasInput] = useState<Record<string, string>>({});
 
   const [busy, setBusy] = useState(false);
-  const companyName = (id: string | null) => companies.find((c) => c.id === id)?.name ?? null;
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -80,15 +68,6 @@ export default function SettingsPanel(props: Props) {
   const addCompany = () => run(async () => { if (!newCompany.trim()) return; await onCreateCompany(newCompany.trim()); setNewCompany(''); });
   const saveCompany = () => run(async () => { if (!editingCompanyName.trim() || !editingCompanyId) return; await onRenameCompany(editingCompanyId, editingCompanyName.trim()); setEditingCompanyId(null); });
   const removeCompany = (c: Company) => run(async () => { if (!confirm(`Delete "${c.name}"? Tasks keep the name but lose the link.`)) return; await onDeleteCompany(c.id); });
-
-  // ─── Contacts ───
-  const addContact = () => run(async () => {
-    if (!newContact.name.trim()) return;
-    await onCreateContact({ name: newContact.name.trim(), email: newContact.email.trim() || undefined, company_id: newContact.company_id || undefined, is_favourite: newContactFav });
-    setNewContact({ name: '', email: '', company_id: '' }); setNewContactFav(false);
-  });
-  const toggleFav = (c: Contact) => run(() => onUpdateContact(c.id, { is_favourite: c.is_favourite !== 1 }));
-  const removeContact = (c: Contact) => run(async () => { if (!confirm(`Delete "${c.name}"? Tasks keep the name but lose the link.`)) return; await onDeleteContact(c.id); });
 
   // ─── Team ───
   const addUser = () => run(async () => {
@@ -296,37 +275,6 @@ export default function SettingsPanel(props: Props) {
           )}
         </section>
 
-        {/* Contacts */}
-        <section className="settings-card">
-          <div className="settings-card-label">Contacts</div>
-          <p className="muted card-help">External people you can tag on a task for reference. They don't sign in or take part in tasks.</p>
-          <div className="settings-add-contact">
-            <input className="text-input" placeholder="Name" value={newContact.name} onChange={(e) => setNewContact({ ...newContact, name: e.target.value })} />
-            <input className="text-input" placeholder="Email (optional)" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} />
-            <select className="select-input" value={newContact.company_id} onChange={(e) => setNewContact({ ...newContact, company_id: e.target.value })}>
-              <option value="">No company</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <label className="checkbox-label"><input type="checkbox" checked={newContactFav} onChange={(e) => setNewContactFav(e.target.checked)} />Favourite</label>
-            <button className="btn-primary sm" onClick={addContact} disabled={busy || !newContact.name.trim()}>Add</button>
-          </div>
-          {contacts.length > 0 && (
-            <ul className="settings-list">
-              {contacts.map((c) => (
-                <li key={c.id} className="settings-row">
-                  <button className={`fav-star ${c.is_favourite === 1 ? 'on' : ''}`} onClick={() => toggleFav(c)} disabled={busy} title="Favourite">{c.is_favourite === 1 ? '★' : '☆'}</button>
-                  <div className="settings-row-name">
-                    <span>{c.name}</span>
-                    <span className="settings-row-sub">{[c.email, companyName(c.company_id)].filter(Boolean).join(' · ') || '—'}</span>
-                  </div>
-                  <div className="settings-row-actions">
-                    <button className="link-btn danger" onClick={() => removeContact(c)} disabled={busy}>Delete</button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
       </div>
     </div>
   );

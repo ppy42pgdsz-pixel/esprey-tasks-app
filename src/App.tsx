@@ -1,26 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from './api';
-import type { Task, TaskStatus, TaskPriority, Company, Contact, User, UserRole } from './types';
+import type { Task, TaskStatus, TaskPriority, Company, User, UserRole } from './types';
 import TaskList from './components/TaskList';
 import TaskDetail from './components/TaskDetail';
 import AddTaskForm from './components/AddTaskForm';
 import SettingsPanel from './components/SettingsPanel';
 import './styles.css';
 
-const sortContacts = (list: Contact[]) =>
-  [...list].sort((a, b) => b.is_favourite - a.is_favourite || a.name.localeCompare(b.name));
-
 type FilterStatus = 'all' | 'todo' | 'in_progress' | 'completed';
 
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterCompany, setFilterCompany] = useState<string>('');
-  const [filterContact, setFilterContact] = useState<string>('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
   const openTask = (task: Task) => { setFocusedSubtaskId(null); setSelectedTask(task); };
@@ -36,7 +31,6 @@ export default function App() {
   // Load reference data once
   useEffect(() => {
     api.listCompanies().then(setCompanies).catch(console.error);
-    api.listContacts().then(setContacts).catch(console.error);
     api.getMe().then(setMe).catch(console.error);
     api.listUsers().then(setUsers).catch(console.error);
   }, []);
@@ -72,23 +66,19 @@ export default function App() {
     setUsers((prev) => prev.map((u) => (u.email === email ? { ...u, company_ids: res.company_ids } : u)));
   };
 
-  // Load by company/contact only; status is filtered client-side so the stat
-  // cards always show accurate counts for every status.
+  // Load by company only; status is filtered client-side so the stat cards
+  // always show accurate counts for every status.
   const loadTasks = useCallback(async () => {
     try {
       setError(null);
-      const data = await api.listTasks(
-        undefined,
-        filterCompany || undefined,
-        filterContact || undefined,
-      );
+      const data = await api.listTasks(undefined, filterCompany || undefined);
       setTasks(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load tasks');
     } finally {
       setLoading(false);
     }
-  }, [filterCompany, filterContact]);
+  }, [filterCompany]);
 
   useEffect(() => {
     setLoading(true);
@@ -136,10 +126,6 @@ export default function App() {
     priority?: TaskPriority;
     company_id?: string;
     company_name?: string;
-    contact_id?: string;
-    contact_name?: string;
-    visibility?: 'private' | 'shared';
-    share_emails?: string[];
   }) => {
     const task = await api.createTask(data);
     setTasks((prev) => [task, ...prev]);
@@ -174,32 +160,8 @@ export default function App() {
   const handleDeleteCompany = async (id: string) => {
     await api.deleteCompany(id);
     setCompanies((prev) => prev.filter((c) => c.id !== id));
-    setContacts((prev) => prev.map((c) => (c.company_id === id ? { ...c, company_id: null } : c)));
     if (filterCompany === id) setFilterCompany('');
     await loadTasks(); // tasks were unassigned from this company
-  };
-
-  // ─── Settings: contact management ───
-  const handleCreateContact = async (data: { name: string; email?: string; company_id?: string; is_favourite?: boolean }) => {
-    const contact = await api.createContact(data);
-    setContacts((prev) => sortContacts([...prev, contact]));
-    return contact;
-  };
-
-  const handleUpdateContact = async (
-    id: string,
-    data: { name?: string; email?: string | null; company_id?: string | null; is_favourite?: boolean },
-  ) => {
-    const updated = await api.updateContact(id, data);
-    setContacts((prev) => sortContacts(prev.map((c) => (c.id === id ? updated : c))));
-    if ('name' in data) await loadTasks(); // denormalized contact_name changed
-  };
-
-  const handleDeleteContact = async (id: string) => {
-    await api.deleteContact(id);
-    setContacts((prev) => prev.filter((c) => c.id !== id));
-    if (filterContact === id) setFilterContact('');
-    await loadTasks(); // tasks were unassigned from this contact
   };
 
   // ─── Refresh ───
@@ -279,9 +241,6 @@ export default function App() {
     completed: tasks.filter((t) => t.archived).length,
   };
 
-  const favouriteContacts = contacts.filter((c) => c.is_favourite === 1);
-  const otherContacts = contacts.filter((c) => c.is_favourite !== 1);
-
   return (
     <div className="app">
       <header className="header">
@@ -301,7 +260,6 @@ export default function App() {
       {showSettings && (
         <SettingsPanel
           companies={companies}
-          contacts={contacts}
           me={me}
           users={users}
           onClose={() => setShowSettings(false)}
@@ -314,9 +272,6 @@ export default function App() {
           onCreateCompany={handleNewCompany}
           onRenameCompany={handleRenameCompany}
           onDeleteCompany={handleDeleteCompany}
-          onCreateContact={handleCreateContact}
-          onUpdateContact={handleUpdateContact}
-          onDeleteContact={handleDeleteContact}
         />
       )}
 
@@ -353,31 +308,9 @@ export default function App() {
                 ))}
               </select>
 
-              <select
-                className="select-input"
-                value={filterContact}
-                onChange={(e) => setFilterContact(e.target.value)}
-              >
-                <option value="">All contacts</option>
-                {favouriteContacts.length > 0 && (
-                  <optgroup label="Favourites">
-                    {favouriteContacts.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </optgroup>
-                )}
-                {otherContacts.length > 0 && (
-                  <optgroup label="Others">
-                    {otherContacts.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-
-              {(filterCompany || filterContact) && (
-                <button className="link-btn" onClick={() => { setFilterCompany(''); setFilterContact(''); }}>
-                  Clear filters
+              {filterCompany && (
+                <button className="link-btn" onClick={() => setFilterCompany('')}>
+                  Clear filter
                 </button>
               )}
 
@@ -391,7 +324,6 @@ export default function App() {
         {showAddForm && (
           <AddTaskForm
             companies={companies}
-            contacts={contacts}
             onSubmit={handleAdd}
             onCancel={() => setShowAddForm(false)}
           />
@@ -433,7 +365,7 @@ export default function App() {
         ) : visibleTasks.length === 0 ? (
           <div className="state-card">
             <div className="state-message muted">
-              {filterStatus === 'all' && !filterCompany && !filterContact
+              {filterStatus === 'all' && !filterCompany
                 ? 'No tasks yet. Add one above or forward an email to tasks@esprey.net'
                 : 'No tasks match the current filters.'}
             </div>
@@ -452,7 +384,6 @@ export default function App() {
             onSubtaskProgress={handleSubtaskProgress}
             meEmail={(me?.email ?? '').toLowerCase()}
             users={users}
-            contacts={contacts}
             showCompleted={filterStatus === 'completed'}
           />
         )}
@@ -465,7 +396,6 @@ export default function App() {
               key={`${selectedTask.id}:${focusedSubtaskId ?? ''}`}
               task={selectedTask}
               companies={companies}
-              contacts={contacts}
               me={me}
               users={users}
               onClose={closeDetail}

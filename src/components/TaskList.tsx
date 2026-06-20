@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect } from 'react';
-import type { Task, TaskStatus, Subtask, User, Contact } from '../types';
+import type { Task, TaskStatus, Subtask, User } from '../types';
 import { api } from '../api';
 
 const STATUS_NEXT: Record<TaskStatus, TaskStatus> = {
@@ -54,7 +54,6 @@ interface Props {
   onSubtaskProgress?: (taskId: string, total: number, done: number, pending?: number) => void;
   meEmail: string;
   users: User[];
-  contacts: Contact[];
   showCompleted: boolean;
 }
 
@@ -71,12 +70,10 @@ export default function TaskList({
   onSubtaskProgress,
   meEmail,
   users,
-  contacts,
   showCompleted,
 }: Props) {
   const userName = (email: string) =>
     users.find((u) => u.email.toLowerCase() === email.toLowerCase())?.name ?? email.split('@')[0];
-  const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? 'Contact';
   const [sortKey, setSortKey] = useState<SortKey>('due');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -250,12 +247,10 @@ export default function TaskList({
                 <td>
                   {(() => {
                     const members = (task.assignee_names ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-                    const contactsA = (task.assigned_contact_names ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-                    if (members.length === 0 && contactsA.length === 0) return <span className="cell-muted">—</span>;
+                    if (members.length === 0) return <span className="cell-muted">—</span>;
                     return (
                       <span className="assigned-cell">
                         {members.map((n) => <span key={`m-${n}`} className="assignee-chip">{n}</span>)}
-                        {contactsA.map((n) => <span key={`c-${n}`} className="assignee-chip contact">{n}</span>)}
                       </span>
                     );
                   })()}
@@ -299,9 +294,6 @@ export default function TaskList({
                       </span>
                       {(s.assignee_emails ?? []).map((em) => (
                         <span key={em} className="assignee-chip">{userName(em)}</span>
-                      ))}
-                      {(s.contact_ids ?? []).map((cid) => (
-                        <span key={cid} className="assignee-chip contact">{contactName(cid)}</span>
                       ))}
                       {s.due_date && <span className="due-chip">Due {formatDueDate(s.due_date)}</span>}
                       <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>

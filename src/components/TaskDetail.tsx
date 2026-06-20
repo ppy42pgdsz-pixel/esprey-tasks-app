@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { Task, TaskStatus, Company, Contact, TaskAttachment, Subtask, User } from '../types';
+import type { Task, TaskStatus, Company, TaskAttachment, Subtask, User } from '../types';
 import { api } from '../api';
-import PeoplePicker from './PeoplePicker';
 
 /**
  * Split pasted text into individual subtask strings. Handles newline-separated
@@ -25,7 +24,6 @@ const SUB_LABEL: Record<TaskStatus, string> = { todo: 'To Do', in_progress: 'In 
 interface Props {
   task: Task;
   companies: Company[];
-  contacts: Contact[];
   me: { email: string } | null;
   users: User[];
   onClose: () => void;
@@ -35,7 +33,7 @@ interface Props {
   focusSubtaskId?: string | null;
 }
 
-export default function TaskDetail({ task, companies, contacts, me, users, onClose, onUpdate, onDelete, onSubtaskProgress, focusSubtaskId }: Props) {
+export default function TaskDetail({ task, companies, me, users, onClose, onUpdate, onDelete, onSubtaskProgress, focusSubtaskId }: Props) {
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [uploadingTask, setUploadingTask] = useState(false);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
@@ -44,7 +42,6 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
   const [subAttachments, setSubAttachments] = useState<Record<string, TaskAttachment[]>>({});
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
 
-  const selectedContact = contacts.find((c) => c.id === task.contact_id) ?? null;
   const doneCount = subtasks.filter((s) => s.status === 'done').length;
   const meEmail = (me?.email ?? '').toLowerCase();
   const isOwner = meEmail === (task.owner_email ?? '').toLowerCase();
@@ -127,7 +124,6 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
 
   const userName = (email: string) =>
     users.find((u) => u.email.toLowerCase() === email.toLowerCase())?.name ?? email;
-  const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? 'Contact';
 
   const saveAssignees = async (s: Subtask, emails: string[], contactIds: string[]) => {
     await api.setSubtaskAssignees(s.id, { user_emails: emails, contact_ids: contactIds });
@@ -137,11 +133,6 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
     const cur = s.assignee_emails ?? [];
     const next = cur.includes(email) ? cur.filter((e) => e !== email) : [...cur, email];
     void saveAssignees(s, next, s.contact_ids ?? []);
-  };
-  const toggleAssignContact = (s: Subtask, id: string) => {
-    const cur = s.contact_ids ?? [];
-    const next = cur.includes(id) ? cur.filter((c) => c !== id) : [...cur, id];
-    void saveAssignees(s, s.assignee_emails ?? [], next);
   };
   const saveSubtaskNotes = async (s: Subtask, notes: string) => {
     if ((s.notes ?? '') === notes) return;
@@ -198,15 +189,6 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
     onUpdate(updated);
   };
 
-  const handleContactSelect = async (contact: Contact | null) => {
-    const updated = await api.updateTask(task.id, {
-      contact_id: contact?.id ?? null,
-      contact_name: contact?.name ?? null,
-    } as Parameters<typeof api.updateTask>[1]);
-    onUpdate(updated);
-  };
-
-
   return (
     <aside className="task-detail">
       <div className="detail-header">
@@ -254,22 +236,6 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-        )}
-      </div>
-
-      {/* Contact */}
-      <div className="detail-section">
-        {!isOwner ? (
-          <>
-            <div className="section-label">Contact</div>
-            <div className="section-value">{task.contact_name || <span className="muted">—</span>}</div>
-          </>
-        ) : (
-          <PeoplePicker
-            contacts={contacts}
-            selected={selectedContact}
-            onSelect={handleContactSelect}
-          />
         )}
       </div>
 
@@ -324,10 +290,7 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
                   {(s.assignee_emails ?? []).map((em) => (
                     <span key={em} className="assignee-chip">{userName(em)}</span>
                   ))}
-                  {(s.contact_ids ?? []).map((cid) => (
-                    <span key={cid} className="assignee-chip contact">{contactName(cid)}</span>
-                  ))}
-                  {(s.assignee_emails ?? []).length === 0 && (s.contact_ids ?? []).length === 0 && (
+                  {(s.assignee_emails ?? []).length === 0 && (
                     <span className="assignee-none">Unassigned</span>
                   )}
                   {isOwner && (
@@ -383,20 +346,6 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
                             onChange={() => toggleAssignMember(s, u.email.toLowerCase())}
                           />
                           {u.name}
-                        </label>
-                      ))}
-                    </div>
-                    <div className="assign-group">
-                      <div className="assign-label">Contacts</div>
-                      {contacts.length === 0 && <span className="assignee-none">No contacts</span>}
-                      {contacts.map((c) => (
-                        <label key={c.id} className="assign-check">
-                          <input
-                            type="checkbox"
-                            checked={(s.contact_ids ?? []).includes(c.id)}
-                            onChange={() => toggleAssignContact(s, c.id)}
-                          />
-                          {c.name}
                         </label>
                       ))}
                     </div>

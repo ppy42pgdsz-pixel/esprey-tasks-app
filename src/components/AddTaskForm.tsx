@@ -1,27 +1,22 @@
 import { useState } from 'react';
-import type { Company, Contact } from '../types';
-import PeoplePicker from './PeoplePicker';
+import type { Company } from '../types';
 
 interface Props {
   companies: Company[];
-  contacts: Contact[];
   onSubmit: (data: {
     title: string;
     description?: string;
     company_id?: string;
     company_name?: string;
-    contact_id?: string;
-    contact_name?: string;
   }) => Promise<void>;
   onCancel: () => void;
 }
 
-export default function AddTaskForm({ companies, contacts, onSubmit, onCancel }: Props) {
+export default function AddTaskForm({ companies, onSubmit, onCancel }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const personalId = companies.find((c) => c.name.trim().toLowerCase() === 'personal')?.id ?? '';
   const [companyId, setCompanyId] = useState(personalId); // default to Personal
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [saving, setSaving] = useState(false);
 
   const selectedCompany = companies.find((c) => c.id === companyId);
@@ -36,8 +31,6 @@ export default function AddTaskForm({ companies, contacts, onSubmit, onCancel }:
         description: description.trim() || undefined,
         company_id: companyId || undefined,
         company_name: selectedCompany?.name,
-        contact_id: selectedContact?.id,
-        contact_name: selectedContact?.name,
       });
     } finally {
       setSaving(false);
@@ -80,12 +73,6 @@ export default function AddTaskForm({ companies, contacts, onSubmit, onCancel }:
             </select>
           </div>
         </div>
-
-        <PeoplePicker
-          contacts={contacts}
-          selected={selectedContact}
-          onSelect={setSelectedContact}
-        />
 
         <div className="form-actions">
           <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
