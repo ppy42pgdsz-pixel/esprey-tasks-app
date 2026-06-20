@@ -210,12 +210,16 @@ export default function TaskDetail({ task, companies, contacts, me, users, onClo
   return (
     <aside className="task-detail">
       <div className="detail-header">
-        <h2 className="detail-title">{focusSubtaskId ? (focusedSub?.text ?? 'Subtask') : task.title}</h2>
+        {focusSubtaskId ? (
+          <div className="detail-title-stack">
+            <div className="detail-parent-name">{task.title}</div>
+            <h2 className="detail-title focus-sub">{focusedSub?.text ?? 'Subtask'}</h2>
+          </div>
+        ) : (
+          <h2 className="detail-title">{task.title}</h2>
+        )}
         <button className="close-btn" onClick={onClose}>×</button>
       </div>
-      {focusSubtaskId && (
-        <p className="muted" style={{ marginTop: '-4px' }}>Subtask of “{task.title}”</p>
-      )}
 
       {!focusSubtaskId && (
       <>
