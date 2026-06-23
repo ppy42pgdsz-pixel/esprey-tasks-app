@@ -5,6 +5,8 @@ import TaskList from './components/TaskList';
 import TaskDetail from './components/TaskDetail';
 import AddTaskForm from './components/AddTaskForm';
 import SettingsPanel from './components/SettingsPanel';
+import CompletedSubtasks from './components/CompletedSubtasks';
+import type { CompletedSubtask } from './types';
 import './styles.css';
 
 type FilterStatus = 'all' | 'todo' | 'in_progress' | 'completed';
@@ -45,6 +47,7 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [me, setMe] = useState<{ email: string; name: string; role: UserRole } | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [completedSubtasks, setCompletedSubtasks] = useState<CompletedSubtask[]>([]);
 
   // Load reference data once
   useEffect(() => {
@@ -102,6 +105,19 @@ export default function App() {
     setLoading(true);
     loadTasks();
   }, [loadTasks]);
+
+  // The "Completed" tab also surfaces signed-off subtasks across all tasks.
+  const loadCompletedSubtasks = useCallback(async () => {
+    try {
+      setCompletedSubtasks(await api.listCompletedSubtasks());
+    } catch {
+      setCompletedSubtasks([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (filterStatus === 'completed') loadCompletedSubtasks();
+  }, [filterStatus, loadCompletedSubtasks]);
 
   // Keep the list fresh across users without a manual refresh: poll periodically
   // and whenever the window/tab regains focus. loadTasks doesn't toggle the
@@ -187,8 +203,14 @@ export default function App() {
   // ─── Refresh ───
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadTasks();
+    await Promise.all([loadTasks(), filterStatus === 'completed' ? loadCompletedSubtasks() : Promise.resolve()]);
     setRefreshing(false);
+  };
+
+  // Open a signed-off subtask from the Completed tab in its focused detail view.
+  const openCompletedSubtask = (taskId: string, subtaskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (task) openSubtask(task, subtaskId);
   };
 
   // ─── Multi-select bulk edit (checkboxes always visible) ───
@@ -445,35 +467,47 @@ export default function App() {
           <div className="state-message">Loading…</div>
         ) : error ? (
           <div className="state-message error">{error}</div>
-        ) : visibleTasks.length === 0 ? (
-          <div className="state-card">
-            <div className="state-message muted">
-              {filterStatus === 'all' && !filtersActive
-                ? 'No tasks yet. Add one above or forward an email to tasks@esprey.net'
-                : 'No tasks match the current filters.'}
-            </div>
-            {filtersActive && (
-              <button className="link-btn" onClick={clearAllFilters} style={{ marginTop: 8 }}>
-                Clear filters
-              </button>
-            )}
-          </div>
         ) : (
-          <TaskList
-            tasks={visibleTasks}
-            selected={selectedTask}
-            onSelect={openTask}
-            onSelectSubtask={openSubtask}
-            onStatusChange={handleStatusChange}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            allSelected={allSelected}
-            onToggleSelectAll={toggleSelectAll}
-            onSubtaskProgress={handleSubtaskProgress}
-            meEmail={(me?.email ?? '').toLowerCase()}
-            users={users}
-            showCompleted={filterStatus === 'completed'}
-          />
+          <>
+            {visibleTasks.length > 0 && (
+              <TaskList
+                tasks={visibleTasks}
+                selected={selectedTask}
+                onSelect={openTask}
+                onSelectSubtask={openSubtask}
+                onStatusChange={handleStatusChange}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+                allSelected={allSelected}
+                onToggleSelectAll={toggleSelectAll}
+                onSubtaskProgress={handleSubtaskProgress}
+                meEmail={(me?.email ?? '').toLowerCase()}
+                users={users}
+                showCompleted={filterStatus === 'completed'}
+              />
+            )}
+
+            {filterStatus === 'completed' && (
+              <CompletedSubtasks items={completedSubtasks} onOpen={openCompletedSubtask} />
+            )}
+
+            {visibleTasks.length === 0 && !(filterStatus === 'completed' && completedSubtasks.length > 0) && (
+              <div className="state-card">
+                <div className="state-message muted">
+                  {filterStatus === 'completed'
+                    ? 'Nothing completed yet. Finished tasks and signed-off subtasks will show here.'
+                    : filterStatus === 'all' && !filtersActive
+                      ? 'No tasks yet. Add one above or forward an email to tasks@esprey.net'
+                      : 'No tasks match the current filters.'}
+                </div>
+                {filtersActive && filterStatus !== 'completed' && (
+                  <button className="link-btn" onClick={clearAllFilters} style={{ marginTop: 8 }}>
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
+          </>
         )}
       </main>
 

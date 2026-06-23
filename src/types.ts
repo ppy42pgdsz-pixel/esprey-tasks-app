@@ -71,6 +71,19 @@ export interface Subtask {
   due_date?: number | null;
 }
 
+export interface CompletedSubtask {
+  id: string;
+  task_id: string;
+  text: string;
+  accepted_at: number;
+  completion_note?: string | null;
+  due_date?: number | null;
+  task_title: string;
+  company_name?: string | null;
+  company_id?: string | null;
+  assignee_names?: string | null;
+}
+
 export interface Company {
   id: string;
   name: string;
