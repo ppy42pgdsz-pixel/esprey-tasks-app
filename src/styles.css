@@ -747,6 +747,9 @@ body {
 }
 .chip:hover { border-color: #d6d3d1; background: #fafaf9; }
 .chip.active { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+.chip-view { border-color: #d6d3d1; color: #44403c; font-weight: 500; }
+.chip-view:hover { background: #f5f4f2; }
+.retention-note { font-size: 12px; margin: -4px 0 14px; }
 
 /* ─── Completed subtasks (Completed tab) ─── */
 .completed-subs { margin-top: 18px; }

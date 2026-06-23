@@ -315,11 +315,6 @@ export default function App() {
     setSelectedIds(new Set());
   };
 
-  const counts = {
-    active: activeTasks.length,
-    completed: tasks.filter((t) => t.archived).length,
-  };
-
   return (
     <div className="app">
       <header className="header">
@@ -358,22 +353,6 @@ export default function App() {
       <main className="main">
         {!loading && !error && (
           <>
-            <div className="stats-row">
-              {([
-                ['active', 'active', counts.active],
-                ['completed', 'completed', counts.completed],
-              ] as [FilterStatus, string, number][]).map(([status, label, n]) => (
-                <button
-                  key={status}
-                  className={`stat-card clickable ${filterStatus === status ? 'active' : ''}`}
-                  onClick={() => setFilterStatus(status)}
-                >
-                  <div className="stat-number">{n}</div>
-                  <div className="stat-label">{label}</div>
-                </button>
-              ))}
-            </div>
-
             <div className="list-controls">
               <input
                 className="text-input search-input"
@@ -419,16 +398,33 @@ export default function App() {
             </div>
 
             <div className="quick-filters">
-              {QUICK_FILTERS.map(([key, label]) => (
-                <button
-                  key={key}
-                  className={`chip ${quickFilter === key ? 'active' : ''}`}
-                  onClick={() => setQuickFilter(quickFilter === key ? '' : key)}
-                >
-                  {label}
+              {filterStatus === 'active' ? (
+                <>
+                  {QUICK_FILTERS.map(([key, label]) => (
+                    <button
+                      key={key}
+                      className={`chip ${quickFilter === key ? 'active' : ''}`}
+                      onClick={() => setQuickFilter(quickFilter === key ? '' : key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <button className="chip chip-view" onClick={() => { setQuickFilter(''); setFilterStatus('completed'); }}>
+                    View completed
+                  </button>
+                </>
+              ) : (
+                <button className="chip active" onClick={() => setFilterStatus('active')}>
+                  ← Back to active
                 </button>
-              ))}
+              )}
             </div>
+
+            {filterStatus === 'completed' && (
+              <p className="retention-note muted">
+                Completed projects are automatically removed 30 days after they're marked complete — along with their tasks and files.
+              </p>
+            )}
           </>
         )}
 
