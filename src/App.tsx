@@ -332,7 +332,7 @@ export default function App() {
 
           <div className="header-title">
             <span className="app-icon" aria-hidden="true">
-              <svg width="26" height="26" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5" fill="#4f46e5"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <img src="/apple-touch-icon.png" width={28} height={28} alt="" style={{ display: 'block', borderRadius: 7 }} />
             </span>
             <h1 className="logo">Tasks</h1>
           </div>
