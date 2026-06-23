@@ -33,17 +33,20 @@ You've been added to Esprey Tasks — the shared to-do and follow-up tool we use
 HOW TO LOG IN
 Go to ${appUrl} and sign in with this email address (${to.email}). You'll get a one-time code by email to confirm it's you — no password to remember.
 
-WHAT IT DOES
-- Organise your work into projects, each with its own tasks that you can assign to people.
-- Forward any email to tasks@esprey.net to turn it into a task automatically. It must come from an email address registered to you — anything sent from an unregistered address bounces back. You can have as many registered addresses as you need (personal, work domains, etc.); just contact ${adminName} to add them.
-- Once a task is complete it moves to the Completed view. Completed tasks are automatically removed after one month, so the list stays focused on what's still live.
+HOW IT'S ORGANISED
+- Your work is grouped into projects. Each project holds one or more tasks — the individual to-dos.
+- Forward any email to tasks@esprey.net and it becomes a project automatically, with the tasks pulled out for you. It must come from an email address registered to you — anything from an unregistered address bounces back. You can register as many addresses as you need (personal, work domains, etc.); just contact ${adminName} to add them.
+- You can also create a project yourself: give it a title and add tasks, or paste in some notes and let the app draft the tasks for you.
 
-WHAT'S PRIVATE AND WHAT'S SHARED
-- Every task you create is private by default — only you can see it.
-- A task only becomes visible to someone else if you explicitly share it. Shared tasks then appear on their list, marked as your task.
-- Tagging a company or contact on a task is just a label — it does not share the task.
-- On a task shared with you, you can add your own comments and mark it done; marking it done sends it back to the owner to accept or reopen.
-- Not even the admin can see your private tasks.
+WORKING WITH OTHERS
+- Projects you create are private to you. Someone else only sees a project once you assign them a task in it — and they see just the tasks assigned to them, not the rest.
+- When you finish a task assigned to you, mark it Done. It goes back to the project owner to sign off — they either accept it or send it back with a note if something's still needed.
+- Tagging a company on a project is just a label for filtering; it doesn't share anything.
+- Each morning you'll get a short email summarising what's on your plate: tasks awaiting your sign-off, tasks assigned to you, and anything due soon. Nothing pending, no email.
+
+KEEPING IT TIDY
+- Once a project is complete it moves to the Completed view. Completed projects are automatically removed after one month, so your list stays focused on what's still live.
+- Not even the admin can see your private projects.
 
 ${adminName} manages the team — just reply with any questions.
 
@@ -54,19 +57,23 @@ ${adminName}`;
   <p>Hi ${firstName},</p>
   <p>You've been added to <strong>Esprey Tasks</strong> — the shared to-do and follow-up tool we use to keep track of what needs doing across the team.</p>
   <p><strong>How to log in</strong><br>Go to <a href="${appUrl}">${appUrl}</a> and sign in with this email address (${to.email}). You'll get a one-time code by email to confirm it's you — no password to remember.</p>
-  <p><strong>What it does</strong></p>
+  <p><strong>How it's organised</strong></p>
   <ul>
-    <li>Organise your work into projects, each with its own tasks that you can assign to people.</li>
-    <li>Forward any email to <strong>tasks@esprey.net</strong> to turn it into a task automatically. It must come from an email address registered to you — anything sent from an <strong>unregistered address bounces back</strong>. You can have as many registered addresses as you need (personal, work domains, etc.); just contact ${adminName} to add them.</li>
-    <li>Once a task is complete it moves to the <strong>Completed</strong> view. Completed tasks are <strong>automatically removed after one month</strong>, so the list stays focused on what's still live.</li>
+    <li>Your work is grouped into <strong>projects</strong>. Each project holds one or more <strong>tasks</strong> — the individual to-dos.</li>
+    <li>Forward any email to <strong>tasks@esprey.net</strong> and it becomes a project automatically, with the tasks pulled out for you. It must come from an email address registered to you — anything from an <strong>unregistered address bounces back</strong>. You can register as many addresses as you need (personal, work domains, etc.); just contact ${adminName} to add them.</li>
+    <li>You can also create a project yourself: give it a title and add tasks, or paste in some notes and let the app draft the tasks for you.</li>
   </ul>
-  <p><strong>What's private and what's shared</strong></p>
+  <p><strong>Working with others</strong></p>
   <ul>
-    <li>Every task you create is <strong>private by default</strong> — only you can see it.</li>
-    <li>A task only becomes visible to someone else if <strong>you explicitly share it</strong>. Shared tasks then appear on their list, marked as your task.</li>
-    <li>Tagging a company or contact on a task is just a label — it does <strong>not</strong> share the task.</li>
-    <li>On a task shared with you, you can add your own comments and mark it done; marking it done sends it back to the owner to accept or reopen.</li>
-    <li>Not even the admin can see your private tasks.</li>
+    <li>Projects you create are <strong>private to you</strong>. Someone else only sees a project once you <strong>assign them a task</strong> in it — and they see just the tasks assigned to them, not the rest.</li>
+    <li>When you finish a task assigned to you, mark it <strong>Done</strong>. It goes back to the project owner to sign off — they either accept it or send it back with a note if something's still needed.</li>
+    <li>Tagging a company on a project is just a label for filtering; it doesn't share anything.</li>
+    <li>Each morning you'll get a short email summarising what's on your plate: tasks awaiting your sign-off, tasks assigned to you, and anything due soon. Nothing pending, no email.</li>
+  </ul>
+  <p><strong>Keeping it tidy</strong></p>
+  <ul>
+    <li>Once a project is complete it moves to the <strong>Completed</strong> view. Completed projects are <strong>automatically removed after one month</strong>, so your list stays focused on what's still live.</li>
+    <li>Not even the admin can see your private projects.</li>
   </ul>
   <p>${adminName} manages the team — just reply with any questions.</p>
   <p>Welcome aboard,<br>${adminName}</p>
