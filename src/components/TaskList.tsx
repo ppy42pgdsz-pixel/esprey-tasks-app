@@ -287,17 +287,8 @@ export default function TaskList({
                     return <span className="tag" style={{ background: bg, color: fg }}>{task.company_name}</span>;
                   })() : <span className="cell-muted">—</span>}
                 </td>
-                <td>
-                  {(() => {
-                    const members = (task.assignee_names ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-                    if (members.length === 0) return <span className="cell-muted">—</span>;
-                    return (
-                      <span className="assigned-cell">
-                        {members.map((n) => <span key={`m-${n}`} className="assignee-chip">{n}</span>)}
-                      </span>
-                    );
-                  })()}
-                </td>
+                {/* Projects aren't assigned — only their tasks are — so this stays blank. */}
+                <td></td>
                 <td>
                   {(() => {
                     const d = nextDue(task);
