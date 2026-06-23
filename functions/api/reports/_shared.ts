@@ -79,62 +79,116 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
   return lines.length ? lines : [''];
 }
 
-/** Render the outstanding report to PDF bytes (A4, paginated). */
+/** Truncate to fit a pixel width, adding an ellipsis. */
+function truncateToWidth(text: string, font: PDFFont, size: number, maxWidth: number): string {
+  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
+  let t = text;
+  while (t.length > 1 && font.widthOfTextAtSize(`${t}…`, size) > maxWidth) t = t.slice(0, -1);
+  return `${t}…`;
+}
+
+/**
+ * Render the outstanding report as a printable LANDSCAPE checklist — built to be
+ * printed and ticked off by hand. Minimal detail: a checkbox + task, a light
+ * "who · due" on the right, grouped by company, with ruled note lines per
+ * project. Deliberately leaves the full record to the app.
+ */
 export async function buildReportPdf(projects: ReportProject[], scopeLabel: string, generatedAt: number): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  const PW = 595.28, PH = 841.89, M = 48;
+  // A4 landscape.
+  const PW = 841.89, PH = 595.28, M = 42;
   const ink = rgb(0.11, 0.1, 0.09);
-  const grey = rgb(0.47, 0.45, 0.43);
-  const contentW = PW - 2 * M;
+  const grey = rgb(0.45, 0.43, 0.41);
+  const faint = rgb(0.66, 0.64, 0.62);
+  const rule = rgb(0.86, 0.85, 0.83);
+  const leftX = M;
+  const rightX = PW - M;
+
+  const BOX = 11;          // checkbox size
+  const GAP = 9;           // gap after checkbox
+  const META_W = 170;      // right column reserved for "who · due"
+  const taskX = leftX + BOX + GAP;
+  const taskW = rightX - META_W - 12 - taskX;
 
   let page: PDFPage = pdf.addPage([PW, PH]);
   let y = PH - M;
   const newPage = () => { page = pdf.addPage([PW, PH]); y = PH - M; };
-  const space = (h: number) => { if (y - h < M) newPage(); };
+  const need = (h: number) => { if (y - h < M) newPage(); };
 
-  const draw = (
-    text: string,
-    opts: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb>; indent?: number; gap?: number } = {},
-  ) => {
-    const f = opts.font ?? font;
-    const size = opts.size ?? 10;
-    const color = opts.color ?? ink;
-    const indent = opts.indent ?? 0;
-    const gap = opts.gap ?? 3;
-    for (const ln of wrapText(text, f, size, contentW - indent)) {
-      space(size + gap);
-      page.drawText(ln, { x: M + indent, y: y - size, size, font: f, color });
-      y -= size + gap;
-    }
-  };
-
-  draw('Outstanding projects & tasks', { font: bold, size: 18, gap: 4 });
+  // Header.
+  page.drawText('Outstanding tasks', { x: leftX, y: y - 18, size: 18, font: bold, color: ink });
+  y -= 22;
   const totalTasks = projects.reduce((n, p) => n + p.tasks.length, 0);
-  draw(`${scopeLabel}  ·  ${fmtDate(generatedAt)}  ·  ${projects.length} project${projects.length === 1 ? '' : 's'}, ${totalTasks} open task${totalTasks === 1 ? '' : 's'}`, { size: 10, color: grey, gap: 8 });
-  y -= 6;
+  page.drawText(`${scopeLabel}    ·    ${fmtDate(generatedAt)}    ·    ${projects.length} project${projects.length === 1 ? '' : 's'},  ${totalTasks} open task${totalTasks === 1 ? '' : 's'}`,
+    { x: leftX, y: y - 9, size: 9, font, color: grey });
+  y -= 22;
 
   if (projects.length === 0) {
-    draw('Nothing outstanding — all clear.', { size: 11, color: grey });
-  } else {
-    for (const p of projects) {
-      space(46);
-      y -= 6;
-      draw(p.title, { font: bold, size: 13, gap: 3 });
-      const meta = [p.company_name, p.due_date ? `due ${fmtDate(p.due_date)}` : null, `added ${fmtDate(p.created_at)}`].filter(Boolean).join('   ·   ');
-      if (meta) draw(meta, { size: 9, color: grey, gap: 5 });
+    page.drawText('Nothing outstanding — all clear.', { x: leftX, y: y - 11, size: 11, font, color: grey });
+    return pdf.save();
+  }
+
+  // Group projects by company, preserving order.
+  const groups = new Map<string, ReportProject[]>();
+  for (const p of projects) {
+    const key = p.company_name || 'No company';
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(p);
+  }
+
+  for (const [company, ps] of groups) {
+    need(30);
+    y -= 4;
+    page.drawText(company.toUpperCase(), { x: leftX, y: y - 10, size: 10, font: bold, color: grey });
+    y -= 14;
+    page.drawLine({ start: { x: leftX, y }, end: { x: rightX, y }, thickness: 1, color: rule });
+    y -= 16;
+
+    for (const p of ps) {
+      need(38);
+      page.drawText(truncateToWidth(p.title, bold, 13, taskW + BOX + GAP), { x: leftX, y: y - 12, size: 13, font: bold, color: ink });
+      if (p.due_date) {
+        const due = `due ${fmtDate(p.due_date)}`;
+        page.drawText(due, { x: rightX - font.widthOfTextAtSize(due, 9), y: y - 11, size: 9, font, color: grey });
+      }
+      y -= 22;
+
       if (p.tasks.length === 0) {
-        draw('No open tasks', { size: 10, color: grey, indent: 12, gap: 3 });
+        page.drawText('— no open tasks —', { x: taskX, y: y - 9, size: 9, font, color: faint });
+        y -= 16;
       } else {
         for (const t of p.tasks) {
-          draw(`•  ${t.text}`, { size: 10, indent: 8, gap: 2 });
-          const bits = [t.assignee_names || 'Unassigned', t.due_date ? `due ${fmtDate(t.due_date)}` : null, t.status === 'done' ? 'awaiting sign-off' : null].filter(Boolean).join('  ·  ');
-          draw(bits, { size: 8.5, color: grey, indent: 22, gap: 4 });
+          const lines = wrapText(t.text, font, 10.5, taskW);
+          need(lines.length * 15 + 4);
+          // Checkbox aligned to the first line.
+          page.drawRectangle({ x: leftX, y: y - BOX, width: BOX, height: BOX, borderColor: grey, borderWidth: 1, color: rgb(1, 1, 1) });
+          // "who · due" right-aligned on the first line.
+          const meta = [t.assignee_names || 'Unassigned', t.due_date ? `due ${fmtDate(t.due_date)}` : null].filter(Boolean).join('   ·   ');
+          const metaText = truncateToWidth(meta, font, 9, META_W);
+          page.drawText(metaText, { x: rightX - font.widthOfTextAtSize(metaText, 9), y: y - 10, size: 9, font, color: grey });
+          // Task text (wrapped).
+          for (const ln of lines) {
+            page.drawText(ln, { x: taskX, y: y - 10.5, size: 10.5, font, color: ink });
+            y -= 15;
+          }
+          y -= 3;
         }
       }
+
+      // Two ruled note lines per project.
+      need(34);
+      y -= 4;
+      page.drawText('Notes', { x: leftX, y: y - 7, size: 7, font, color: faint });
+      y -= 13;
+      for (let i = 0; i < 2; i++) {
+        page.drawLine({ start: { x: leftX, y }, end: { x: rightX, y }, thickness: 0.5, color: rule });
+        y -= 16;
+      }
+      y -= 10;
     }
+    y -= 6;
   }
 
   return pdf.save();
