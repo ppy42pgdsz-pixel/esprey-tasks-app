@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from './api';
-import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, User, UserRole } from './types';
+import type { Task, TaskStatus, RecurUnit, Company, User, UserRole } from './types';
 import TaskList from './components/TaskList';
 import TaskDetail from './components/TaskDetail';
 import AddTaskForm from './components/AddTaskForm';
@@ -156,15 +156,19 @@ export default function App() {
 
   const handleAdd = async (data: {
     title: string;
-    description?: string;
-    priority?: TaskPriority;
     company_id?: string;
     company_name?: string;
     recur_interval?: number;
     recur_unit?: RecurUnit;
+    tasks: string[];
   }) => {
-    const task = await api.createTask(data);
-    setTasks((prev) => [task, ...prev]);
+    const { tasks: taskItems, ...projectData } = data;
+    const project = await api.createTask(projectData);
+    // Create each task (sequentially keeps their order/position).
+    for (const text of taskItems) {
+      try { await api.createSubtask(project.id, text); } catch (e) { console.error('failed to add task', e); }
+    }
+    setTasks((prev) => [{ ...project, subtask_total: taskItems.length, subtask_done: 0 }, ...prev]);
     setShowAddForm(false);
   };
 
@@ -275,7 +279,7 @@ export default function App() {
     const failed = results.filter((r) => r.status === 'rejected').length;
     await loadTasks();
     setSelectedIds(new Set());
-    if (failed) alert(`${failed} of ${ids.length} task(s) couldn't be changed — you can only edit tasks you own.`);
+    if (failed) alert(`${failed} of ${ids.length} project(s) couldn't be changed — you can only edit projects you own.`);
   };
   const handleBulkStatus = (status: TaskStatus) => applyBulk((id) => api.updateTask(id, { status }));
   const handleBulkCompany = (value: string) => {
@@ -293,13 +297,13 @@ export default function App() {
       return !!t && ((t.owner_email ?? '').toLowerCase() === meEmail || !t.owner_email);
     });
     if (mine.length === 0) {
-      alert("You can only delete tasks you own. Tasks shared with you can't be deleted.");
+      alert("You can only delete projects you own. Projects shared with you can't be deleted.");
       return;
     }
     const skipped = ids.length - mine.length;
     const msg = skipped > 0
-      ? `Delete ${mine.length} task(s) you own? ${skipped} owned by someone else will be left alone. This cannot be undone.`
-      : `Delete ${mine.length} task(s)? This cannot be undone.`;
+      ? `Delete ${mine.length} project(s) you own? ${skipped} owned by someone else will be left alone. This cannot be undone.`
+      : `Delete ${mine.length} project(s)? This cannot be undone.`;
     if (!confirm(msg)) return;
     await Promise.allSettled(mine.map((id) => api.deleteTask(id)));
     await loadTasks();
@@ -323,7 +327,7 @@ export default function App() {
               Settings
             </button>
             <button className="btn-primary" onClick={() => setShowAddForm(true)}>
-              + Add Task
+              + Add New
             </button>
           </div>
         </div>
@@ -352,7 +356,7 @@ export default function App() {
           <>
             <div className="stats-row">
               {([
-                ['all', 'tasks', counts.all],
+                ['all', 'projects', counts.all],
                 ['todo', 'to do', counts.todo],
                 ['in_progress', 'in progress', counts.in_progress],
                 ['completed', 'completed', counts.completed],
@@ -372,7 +376,7 @@ export default function App() {
               <input
                 className="text-input search-input"
                 type="search"
-                placeholder="Search tasks…"
+                placeholder="Search projects…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -495,10 +499,10 @@ export default function App() {
               <div className="state-card">
                 <div className="state-message muted">
                   {filterStatus === 'completed'
-                    ? 'Nothing completed yet. Finished tasks and signed-off subtasks will show here.'
+                    ? 'Nothing completed yet. Finished projects and signed-off tasks will show here.'
                     : filterStatus === 'all' && !filtersActive
-                      ? 'No tasks yet. Add one above or forward an email to tasks@esprey.net'
-                      : 'No tasks match the current filters.'}
+                      ? 'No projects yet. Add one above or forward an email to tasks@esprey.net'
+                      : 'No projects match the current filters.'}
                 </div>
                 {filtersActive && filterStatus !== 'completed' && (
                   <button className="link-btn" onClick={clearAllFilters} style={{ marginTop: 8 }}>

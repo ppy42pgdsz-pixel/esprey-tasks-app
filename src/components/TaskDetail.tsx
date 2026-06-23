@@ -256,7 +256,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
   const handleStatusChange = async (status: TaskStatus) => {
     if (status === 'done') {
       const unfinished = subtasks.filter((s) => !(s.status === 'done' && s.accepted_at)).length;
-      if (unfinished > 0 && !confirm(`${unfinished} subtask${unfinished > 1 ? 's are' : ' is'} not signed off yet. Mark the whole task complete anyway?`)) return;
+      if (unfinished > 0 && !confirm(`${unfinished} task${unfinished > 1 ? 's are' : ' is'} not signed off yet. Mark the whole project complete anyway?`)) return;
     }
     const updated = await api.updateTask(task.id, { status });
     onUpdate(updated);
@@ -301,7 +301,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
         {focusSubtaskId ? (
           <div className="detail-title-stack">
             <div className="detail-parent-name">{task.title}</div>
-            <h2 className="detail-title focus-sub">{focusedSub?.text ?? 'Subtask'}</h2>
+            <h2 className="detail-title focus-sub">{focusedSub?.text ?? 'Task'}</h2>
           </div>
         ) : (
           <h2 className="detail-title">{task.title}</h2>
@@ -389,7 +389,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
             </label>
           )}
           {task.recur_unit && (
-            <p className="repeat-hint muted">A fresh copy is created on each occurrence and this repeat moves to it. Deleting this task stops the series.</p>
+            <p className="repeat-hint muted">A fresh copy is created on each occurrence and this repeat moves to it. Deleting this project stops the series.</p>
           )}
         </div>
       )}
@@ -422,7 +422,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
       {/* Subtasks (filtered to one in focused mode) */}
       <div className="detail-section">
         <div className="section-label">
-          {focusSubtaskId ? 'Subtask' : `Subtasks${subtasks.length > 0 ? ` · ${doneCount}/${subtasks.length}` : ''}`}
+          {focusSubtaskId ? 'Task' : `Tasks${subtasks.length > 0 ? ` · ${doneCount}/${subtasks.length}` : ''}`}
         </div>
         {visibleSubtasks.length > 0 && (
           <ul className="subtask-list">
@@ -438,7 +438,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
                   </span>
                   <span className="subtask-text">{s.text}</span>
                   {isOwner && (
-                    <button className="subtask-del" onClick={() => deleteSubtask(s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>
+                    <button className="subtask-del" onClick={() => deleteSubtask(s.id)} title="Delete task" aria-label="Delete task">✕</button>
                   )}
                 </div>
                 <div className="subtask-meta">
@@ -597,7 +597,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
             <textarea
               className="textarea"
               rows={3}
-              placeholder="Add a subtask — or paste a list (new lines, or 1) 2) 3) split into separate subtasks)"
+              placeholder="Add a task — or paste a list (new lines, or 1) 2) 3) split into separate tasks)"
               value={newSubtask}
               onChange={(e) => setNewSubtask(e.target.value)}
             />
@@ -611,7 +611,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
       {/* Shared task files shown read-only in focused subtask mode */}
       {focusSubtaskId && attachments.length > 0 && (
         <div className="detail-section">
-          <div className="section-label">Shared files <span className="muted">(from the main task)</span></div>
+          <div className="section-label">Shared files <span className="muted">(from the project)</span></div>
           <div className="subtask-files">
             {attachments.map((a) => (
               <div key={a.id} className="subtask-file">
@@ -629,7 +629,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
         <>
           {/* Task files — shared across all subtasks */}
           <div className="detail-section">
-            <div className="section-label">Files <span className="muted">· shared across subtasks</span></div>
+            <div className="section-label">Files <span className="muted">· shared across tasks</span></div>
             <div className="subtask-files">
               {attachments.map((a) => (
                 <div key={a.id} className="subtask-file">
@@ -712,8 +712,8 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
 
           {isOwner && (
             <div className="detail-footer">
-              <button className="btn-danger" onClick={() => { if (confirm('Delete this task?')) onDelete(task); }}>
-                Delete task
+              <button className="btn-danger" onClick={() => { if (confirm('Delete this project?')) onDelete(task); }}>
+                Delete project
               </button>
             </div>
           )}

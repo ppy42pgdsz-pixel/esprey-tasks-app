@@ -15,14 +15,14 @@ export default function CompletedSubtasks({ items, onOpen }: Props) {
   if (items.length === 0) return null;
   return (
     <div className="completed-subs">
-      <h3 className="completed-subs-title">Signed-off subtasks · {items.length}</h3>
+      <h3 className="completed-subs-title">Signed-off tasks · {items.length}</h3>
       <ul className="completed-subs-list">
         {items.map((s) => (
           <li
             key={s.id}
             className="completed-sub"
             onClick={() => onOpen(s.task_id, s.id)}
-            title="Open this subtask"
+            title="Open this task"
           >
             <span className="completed-sub-check">✓</span>
             <div className="completed-sub-body">

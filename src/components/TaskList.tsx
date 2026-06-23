@@ -78,6 +78,31 @@ export default function TaskList({
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [subsByTask, setSubsByTask] = useState<Record<string, Subtask[]>>({});
+  // Bulk-assign of Tasks within a Project (owner only, from the main view).
+  const [selectedSubs, setSelectedSubs] = useState<Set<string>>(new Set());
+  const [assignFor, setAssignFor] = useState<string | null>(null); // project id whose assign popover is open
+  const [assignEmails, setAssignEmails] = useState<string[]>([]);
+
+  const ownsProject = (task: Task) => (task.owner_email ?? '').toLowerCase() === meEmail || !task.owner_email;
+  const toggleSubSelect = (id: string) =>
+    setSelectedSubs((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const projectSelected = (taskId: string) => (subsByTask[taskId] ?? []).filter((s) => selectedSubs.has(s.id));
+  const clearProjectSelection = (taskId: string) =>
+    setSelectedSubs((prev) => { const n = new Set(prev); (subsByTask[taskId] ?? []).forEach((s) => n.delete(s.id)); return n; });
+  const toggleAssignEmail = (email: string) =>
+    setAssignEmails((prev) => (prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]));
+  const applyBulkAssign = async (task: Task) => {
+    const subs = projectSelected(task.id);
+    if (subs.length === 0) return;
+    await Promise.all(subs.map((s) => api.setSubtaskAssignees(s.id, { user_emails: assignEmails, contact_ids: s.contact_ids ?? [] })));
+    setSubsByTask((prev) => ({
+      ...prev,
+      [task.id]: (prev[task.id] ?? []).map((s) => (selectedSubs.has(s.id) ? { ...s, assignee_emails: assignEmails } : s)),
+    }));
+    setAssignFor(null);
+    setAssignEmails([]);
+    clearProjectSelection(task.id);
+  };
 
   // Whenever the task list refreshes (auto-refresh or an edit), refetch the
   // subtasks of any expanded rows so their status, assignees, and due dates
@@ -177,7 +202,7 @@ export default function TaskList({
       {expandableIds.length > 0 && (
         <div className="list-subcontrols">
           <button className="link-btn" onClick={toggleAllExpand}>
-            {allExpanded ? '▾ Collapse all subtasks' : '▸ Expand all subtasks'}
+            {allExpanded ? '▾ Collapse all tasks' : '▸ Expand all tasks'}
           </button>
         </div>
       )}
@@ -234,7 +259,7 @@ export default function TaskList({
                       <button
                         className="expand-chevron"
                         onClick={(e) => { e.stopPropagation(); toggleExpand(task.id); }}
-                        aria-label="Toggle subtasks"
+                        aria-label="Toggle tasks"
                       >
                         {isExpanded ? '▾' : '▸'}
                       </button>
@@ -292,10 +317,50 @@ export default function TaskList({
                 </tr>
               )}
 
+              {isExpanded && ownsProject(task) && projectSelected(task.id).length > 0 && (
+                <tr className="subtask-row">
+                  <td colSpan={COL_COUNT}>
+                    <div className="subtask-bulk-bar">
+                      <span className="bulk-count">{projectSelected(task.id).length} selected</span>
+                      <button className="btn-secondary sm" onClick={() => { setAssignFor(assignFor === task.id ? null : task.id); setAssignEmails([]); }}>
+                        Assign ▾
+                      </button>
+                      <button className="link-btn" onClick={() => clearProjectSelection(task.id)}>Clear</button>
+                      {assignFor === task.id && (
+                        <div className="assign-picker inline">
+                          {users.length === 0 && <span className="assignee-none">No team members</span>}
+                          {users.map((u) => (
+                            <label key={u.email} className="assign-check">
+                              <input
+                                type="checkbox"
+                                checked={assignEmails.includes(u.email.toLowerCase())}
+                                onChange={() => toggleAssignEmail(u.email.toLowerCase())}
+                              />
+                              {u.name}
+                            </label>
+                          ))}
+                          <button className="btn-primary sm" onClick={() => applyBulkAssign(task)}>Apply</button>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+
               {isExpanded && (subsByTask[task.id] ?? []).filter((s) => showCompleted || !s.accepted_at).map((s) => (
                 <tr key={s.id} className="subtask-row">
                   <td colSpan={COL_COUNT}>
                     <div className={`subtask-line ${s.status === 'done' ? 'done' : ''}`}>
+                      {ownsProject(task) && (
+                        <input
+                          type="checkbox"
+                          className="select-checkbox sub-select"
+                          checked={selectedSubs.has(s.id)}
+                          onChange={() => toggleSubSelect(s.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label="Select task"
+                        />
+                      )}
                       <span
                         className={`status-pill ${s.status}`}
                         title={`Mark as ${STATUS_LABEL[STATUS_NEXT[s.status]]}`}
@@ -306,7 +371,7 @@ export default function TaskList({
                       <span
                         className="subtask-row-text clickable"
                         onClick={() => onSelectSubtask(task, s.id)}
-                        title="Open this subtask"
+                        title="Open this task"
                       >
                         {s.text}
                       </span>
@@ -314,7 +379,7 @@ export default function TaskList({
                         <span key={em} className="assignee-chip">{userName(em)}</span>
                       ))}
                       {s.due_date && <span className="due-chip">Due {formatDueDate(s.due_date)}</span>}
-                      <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete subtask" aria-label="Delete subtask">✕</button>
+                      <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete task" aria-label="Delete task">✕</button>
                     </div>
                   </td>
                 </tr>

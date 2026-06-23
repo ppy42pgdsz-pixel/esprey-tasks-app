@@ -28,6 +28,9 @@ export const api = {
 
   listCompletedSubtasks: () => request<CompletedSubtask[]>('/api/completed-subtasks'),
 
+  extractTasks: (text: string) =>
+    request<{ tasks: string[] }>('/api/ai/extract-tasks', { method: 'POST', body: JSON.stringify({ text }) }),
+
   createTask: (data: {
     title: string;
     description?: string;

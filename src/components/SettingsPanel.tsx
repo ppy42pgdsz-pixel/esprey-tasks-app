@@ -221,7 +221,7 @@ export default function SettingsPanel(props: Props) {
           <section className="settings-card">
             <div className="settings-card-label">Daily digest</div>
             <p className="muted" style={{ marginTop: 0 }}>
-              Every morning the app automatically emails each person a summary of what's on their plate — items awaiting their sign-off, subtasks assigned to them, and anything due soon. Anyone with nothing pending isn't emailed. The buttons below send it right now instead of waiting for the morning.
+              Every morning the app automatically emails each person a summary of what's on their plate — items awaiting their sign-off, tasks assigned to them, and anything due soon. Anyone with nothing pending isn't emailed. The buttons below send it right now instead of waiting for the morning.
             </p>
             <div className="settings-card-row">
               <div><strong>Send everyone their digest now</strong> <span className="muted">· each person gets their own summary; people with nothing pending are skipped</span></div>

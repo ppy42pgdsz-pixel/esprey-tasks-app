@@ -34,7 +34,7 @@ HOW TO LOG IN
 Go to ${appUrl} and sign in with this email address (${to.email}). You'll get a one-time code by email to confirm it's you — no password to remember.
 
 WHAT IT DOES
-- Keep your own to-do list, with priorities, notes, and sub-tasks.
+- Organise your work into projects, each with its own tasks that you can assign to people.
 - Forward any email to tasks@esprey.net to turn it into a task automatically. It must come from an email address registered to you — anything sent from an unregistered address bounces back. You can have as many registered addresses as you need (personal, work domains, etc.); just contact ${adminName} to add them.
 - Once a task is complete it moves to the Completed view. Completed tasks are automatically removed after one month, so the list stays focused on what's still live.
 
@@ -56,7 +56,7 @@ ${adminName}`;
   <p><strong>How to log in</strong><br>Go to <a href="${appUrl}">${appUrl}</a> and sign in with this email address (${to.email}). You'll get a one-time code by email to confirm it's you — no password to remember.</p>
   <p><strong>What it does</strong></p>
   <ul>
-    <li>Keep your own to-do list, with priorities, notes, and sub-tasks.</li>
+    <li>Organise your work into projects, each with its own tasks that you can assign to people.</li>
     <li>Forward any email to <strong>tasks@esprey.net</strong> to turn it into a task automatically. It must come from an email address registered to you — anything sent from an <strong>unregistered address bounces back</strong>. You can have as many registered addresses as you need (personal, work domains, etc.); just contact ${adminName} to add them.</li>
     <li>Once a task is complete it moves to the <strong>Completed</strong> view. Completed tasks are <strong>automatically removed after one month</strong>, so the list stays focused on what's still live.</li>
   </ul>

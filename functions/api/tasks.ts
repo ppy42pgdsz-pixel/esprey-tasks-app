@@ -154,7 +154,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     }
   }
 
-  await logEvent(ctx.env.DB, id, me, 'created', recurUnit ? 'Task created (repeating)' : 'Task created');
+  await logEvent(ctx.env.DB, id, me, 'created', recurUnit ? 'Project created (repeating)' : 'Project created');
 
   const task = await ctx.env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(id).first();
   return json(task, 201);

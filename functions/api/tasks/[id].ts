@@ -70,8 +70,8 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
 
   // Log a completed/reopened transition (only when the status actually changed).
   if (prior && 'status' in body && body.status !== prior.status) {
-    if (body.status === 'done') await logEvent(ctx.env.DB, id, me, 'completed', 'Marked the task complete');
-    else if (prior.status === 'done') await logEvent(ctx.env.DB, id, me, 'reopened', 'Reopened the task');
+    if (body.status === 'done') await logEvent(ctx.env.DB, id, me, 'completed', 'Marked the project complete');
+    else if (prior.status === 'done') await logEvent(ctx.env.DB, id, me, 'reopened', 'Reopened the project');
   }
 
   const task = await ctx.env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(id).first();

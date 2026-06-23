@@ -702,6 +702,23 @@ body {
 .repeat-next input { font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid #d6d3d1; border-radius: 6px; }
 .repeat-hint { font-size: 12px; margin: 6px 0 0; }
 
+/* ─── Bulk-assign Tasks within a Project ─── */
+.subtask-bulk-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; }
+.subtask-bulk-bar .bulk-count { font-size: 13px; font-weight: 600; color: #4f46e5; }
+.assign-picker.inline { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #faf9f8; border: 1px solid #ececea; border-radius: 8px; padding: 8px 12px; }
+.sub-select { margin-right: 2px; }
+
+/* ─── Create: Tasks builder ─── */
+.create-tasks { margin-top: 4px; border-top: 1px solid #f0eeec; padding-top: 12px; }
+.create-tasks-label { font-size: 13px; font-weight: 600; color: #57534e; margin-bottom: 8px; }
+.create-task-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.create-task-row { display: flex; gap: 8px; align-items: center; }
+.create-task-row .text-input { flex: 1; }
+.create-task-add { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.create-task-add .text-input { flex: 1; }
+.create-task-paste { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.create-task-paste .textarea { width: 100%; }
+
 /* ─── Search + quick filters ─── */
 .search-input { flex: 1; min-width: 160px; max-width: 280px; }
 .quick-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }

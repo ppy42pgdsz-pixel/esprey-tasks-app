@@ -62,7 +62,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     'INSERT INTO subtasks (id, task_id, text, done, position, created_at) VALUES (?, ?, ?, 0, ?, ?)',
   ).bind(sid, id, text.slice(0, 300), position, now).run();
 
-  await logEvent(ctx.env.DB, id, me, 'subtask_added', `Added subtask: ${text.slice(0, 120)}`);
+  await logEvent(ctx.env.DB, id, me, 'subtask_added', `Added task: ${text.slice(0, 120)}`);
 
   const created = await ctx.env.DB.prepare('SELECT * FROM subtasks WHERE id = ?').bind(sid).first();
   return json(created, 201);

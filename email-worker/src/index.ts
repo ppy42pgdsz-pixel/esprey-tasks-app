@@ -161,9 +161,9 @@ async function sendDailyDigests(env: Env): Promise<number> {
       htmlParts.push(`<p><strong>Assigned to you (${assigned.length})</strong></p><ul>${assigned.map((a) => `<li>${esc(a.subtask_text)} — <em>${esc(a.task_title)}</em>${a.due_date ? ` <span style="color:#5b21b6">(due ${dueLabel(a.due_date, now)})</span>` : ''}</li>`).join('')}</ul>`);
     }
     if (dueTasks.length) {
-      textParts.push('', `YOUR TASKS DUE SOON (${dueTasks.length})`);
+      textParts.push('', `YOUR PROJECTS DUE SOON (${dueTasks.length})`);
       dueTasks.forEach((d) => textParts.push(`- ${d.title} — due ${dueLabel(d.due_date, now)}`));
-      htmlParts.push(`<p><strong>Your tasks due soon (${dueTasks.length})</strong></p><ul>${dueTasks.map((d) => `<li>${esc(d.title)} — <span style="color:#5b21b6">due ${dueLabel(d.due_date, now)}</span></li>`).join('')}</ul>`);
+      htmlParts.push(`<p><strong>Your projects due soon (${dueTasks.length})</strong></p><ul>${dueTasks.map((d) => `<li>${esc(d.title)} — <span style="color:#5b21b6">due ${dueLabel(d.due_date, now)}</span></li>`).join('')}</ul>`);
     }
 
     textParts.push('', `Open the app: ${appUrl}`);
@@ -270,7 +270,7 @@ async function generateRecurring(env: Env): Promise<number> {
     try {
       await env.DB.prepare(
         'INSERT INTO task_events (id, task_id, actor_email, type, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      ).bind(nanoid(), newId, null, 'created', 'Created automatically (repeating task)', now).run();
+      ).bind(nanoid(), newId, null, 'created', 'Created automatically (repeating project)', now).run();
     } catch (e) { console.error('failed to log recurrence create event:', e); }
 
     // Clone subtasks (fresh state) + their assignees and contacts.
