@@ -299,20 +299,13 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
 
   return (
     <aside className="task-detail">
-      <div className="detail-header">
-        {focusSubtaskId ? (
-          <div className="detail-title-stack">
-            <div className="detail-parent-name">{task.title}</div>
-            <h2 className="detail-title focus-sub">{focusedSub?.text ?? 'Task'}</h2>
-          </div>
-        ) : (
-          <h2 className="detail-title">{task.title}</h2>
-        )}
-        <button className="close-btn" onClick={onClose}>×</button>
-      </div>
+      <button className="close-btn sheet-close" onClick={onClose}>×</button>
+      <div className="detail-cols">
+      {/* ─── Left: project-level details ─── */}
+      <div className="detail-left">
+      <div className="detail-project-label">Project</div>
+      <h2 className="detail-title">{task.title}</h2>
 
-      {!focusSubtaskId && (
-      <>
       <div className="detail-controls">
         <select
           className="select-input"
@@ -417,13 +410,107 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
           <p className="section-value">{task.owner_name || task.owner_email}</p>
         </div>
       )}
-      </>
+
+      {/* Files — shared across all tasks */}
+      <div className="detail-section">
+        <div className="section-label">Files <span className="muted">· shared across tasks</span></div>
+        <div className="subtask-files">
+          {attachments.map((a) => (
+            <div key={a.id} className="subtask-file">
+              <div className="subtask-file-row">
+                <a href={`/api/attachments/${a.id}`} target="_blank" rel="noreferrer" className="file-name">📎 {a.filename}</a>
+                {isOwner && (
+                  <button className="subtask-del" onClick={() => removeTaskAttachment(a.id)} title="Remove file" aria-label="Remove file">✕</button>
+                )}
+              </div>
+              {a.summary && <div className="file-summary">{a.summary}</div>}
+            </div>
+          ))}
+          <label className="attach-btn">
+            {uploadingTask ? 'Uploading…' : '+ Attach file'}
+            <input
+              type="file"
+              hidden
+              disabled={uploadingTask}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadTaskFile(f); e.target.value = ''; }}
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div className="detail-section">
+        <div className="section-label">Notes</div>
+        {isOwner ? (
+          <textarea
+            className="textarea"
+            rows={4}
+            placeholder="Add notes…"
+            defaultValue={task.description}
+            onBlur={(e) => saveDesc(e.target.value)}
+          />
+        ) : (
+          <div className="section-value" style={{ whiteSpace: 'pre-wrap' }}>
+            {task.description || <span className="muted">No notes</span>}
+          </div>
+        )}
+      </div>
+
+      {task.source === 'email' && task.original_body && (
+        <div className="detail-section">
+          <div className="section-label">Original email</div>
+          <div className="original-body">{task.original_body}</div>
+        </div>
       )}
 
-      {/* Subtasks (filtered to one in focused mode) */}
+      {/* Activity timeline — owner only */}
+      {isOwner && events.length > 0 && (
+        <div className="detail-section activity-section">
+          <button
+            className="activity-toggle link-btn"
+            onClick={() => {
+              const next = !showActivity;
+              setShowActivity(next);
+              if (next) api.listEvents(task.id).then(setEvents).catch(() => {});
+            }}
+          >
+            {showActivity ? '▾' : '▸'} Activity ({events.length})
+          </button>
+          {showActivity && (
+            <ul className="activity-list">
+              {events.map((e) => (
+                <li key={e.id} className="activity-item">
+                  <span className="activity-icon">{EVENT_ICON[e.type] ?? '•'}</span>
+                  <div className="activity-body">
+                    <div className="activity-detail">{e.detail}</div>
+                    <div className="activity-meta">
+                      {e.actor_name || (e.actor_email ? e.actor_email.split('@')[0] : 'System')} · {fmtEventTime(e.created_at)}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {isOwner && (
+        <div className="detail-footer">
+          <button className="btn-danger" onClick={() => { if (confirm('Delete this project?')) onDelete(task); }}>
+            Delete project
+          </button>
+        </div>
+      )}
+
+      </div>{/* end detail-left */}
+
+      {/* ─── Right: tasks ─── */}
+      <div className="detail-right">
+
+      {/* Tasks (filtered to one in focused mode) */}
       <div className="detail-section">
         <div className="section-label">
-          {focusSubtaskId ? 'Task' : `Tasks${subtasks.length > 0 ? ` · ${doneCount}/${subtasks.length}` : ''}`}
+          {focusSubtaskId ? (focusedSub?.text ?? 'Task') : `Tasks${subtasks.length > 0 ? ` · ${doneCount}/${subtasks.length}` : ''}`}
         </div>
         {visibleSubtasks.length > 0 && (
           <ul className="subtask-list">
@@ -609,117 +696,8 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
         )}
       </div>
 
-      {/* Shared task files shown read-only in focused subtask mode */}
-      {focusSubtaskId && attachments.length > 0 && (
-        <div className="detail-section">
-          <div className="section-label">Shared files <span className="muted">(from the project)</span></div>
-          <div className="subtask-files">
-            {attachments.map((a) => (
-              <div key={a.id} className="subtask-file">
-                <div className="subtask-file-row">
-                  <a href={`/api/attachments/${a.id}`} target="_blank" rel="noreferrer" className="file-name">📎 {a.filename}</a>
-                </div>
-                {a.summary && <div className="file-summary">{a.summary}</div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!focusSubtaskId && (
-        <>
-          {/* Task files — shared across all subtasks */}
-          <div className="detail-section">
-            <div className="section-label">Files <span className="muted">· shared across tasks</span></div>
-            <div className="subtask-files">
-              {attachments.map((a) => (
-                <div key={a.id} className="subtask-file">
-                  <div className="subtask-file-row">
-                    <a href={`/api/attachments/${a.id}`} target="_blank" rel="noreferrer" className="file-name">📎 {a.filename}</a>
-                    {isOwner && (
-                      <button className="subtask-del" onClick={() => removeTaskAttachment(a.id)} title="Remove file" aria-label="Remove file">✕</button>
-                    )}
-                  </div>
-                  {a.summary && <div className="file-summary">{a.summary}</div>}
-                </div>
-              ))}
-              <label className="attach-btn">
-                {uploadingTask ? 'Uploading…' : '+ Attach file'}
-                <input
-                  type="file"
-                  hidden
-                  disabled={uploadingTask}
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadTaskFile(f); e.target.value = ''; }}
-                />
-              </label>
-            </div>
-          </div>
-
-          {/* Notes — always-visible text box */}
-          <div className="detail-section">
-            <div className="section-label">Notes</div>
-            {isOwner ? (
-              <textarea
-                className="textarea"
-                rows={4}
-                placeholder="Add notes…"
-                defaultValue={task.description}
-                onBlur={(e) => saveDesc(e.target.value)}
-              />
-            ) : (
-              <div className="section-value" style={{ whiteSpace: 'pre-wrap' }}>
-                {task.description || <span className="muted">No notes</span>}
-              </div>
-            )}
-          </div>
-
-          {task.source === 'email' && task.original_body && (
-            <div className="detail-section">
-              <div className="section-label">Original email</div>
-              <div className="original-body">{task.original_body}</div>
-            </div>
-          )}
-
-          {/* Activity timeline — owner only, collapsed by default to keep the panel calm */}
-          {isOwner && events.length > 0 && (
-            <div className="detail-section activity-section">
-              <button
-                className="activity-toggle link-btn"
-                onClick={() => {
-                  const next = !showActivity;
-                  setShowActivity(next);
-                  if (next) api.listEvents(task.id).then(setEvents).catch(() => {});
-                }}
-              >
-                {showActivity ? '▾' : '▸'} Activity ({events.length})
-              </button>
-              {showActivity && (
-                <ul className="activity-list">
-                  {events.map((e) => (
-                    <li key={e.id} className="activity-item">
-                      <span className="activity-icon">{EVENT_ICON[e.type] ?? '•'}</span>
-                      <div className="activity-body">
-                        <div className="activity-detail">{e.detail}</div>
-                        <div className="activity-meta">
-                          {e.actor_name || (e.actor_email ? e.actor_email.split('@')[0] : 'System')} · {fmtEventTime(e.created_at)}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-
-          {isOwner && (
-            <div className="detail-footer">
-              <button className="btn-danger" onClick={() => { if (confirm('Delete this project?')) onDelete(task); }}>
-                Delete project
-              </button>
-            </div>
-          )}
-        </>
-      )}
+      </div>{/* end detail-right */}
+      </div>{/* end detail-cols */}
     </aside>
   );
 }

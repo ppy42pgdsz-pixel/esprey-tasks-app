@@ -295,13 +295,31 @@ body {
   border-top: 1px solid #e7e5e4;
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -10px 40px rgba(28, 25, 23, 0.22);
-  overflow-y: auto;
+  overflow: hidden;            /* the two panes scroll, not the whole sheet */
   animation: sheet-up 0.22s ease;
 }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
-/* ─── Task Detail ─── */
-.task-detail { padding: 24px; }
+/* ─── Task Detail (two-pane bottom sheet) ─── */
+.task-detail { padding: 0; height: 100%; position: relative; }
+.sheet-close { position: absolute; top: 10px; right: 14px; z-index: 3; }
+.detail-cols { display: flex; height: 100%; }
+.detail-left {
+  width: 320px;
+  flex-shrink: 0;
+  padding: 22px 20px;
+  border-right: 1px solid #ece9e6;
+  overflow-y: auto;
+  background: #fafaf9;
+}
+.detail-right { flex: 1; min-width: 0; padding: 22px 28px; overflow-y: auto; }
+.detail-project-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #a8a29e; margin-bottom: 2px; }
+.detail-left .detail-title { font-size: 18px; margin: 0 0 14px; }
+.detail-right .section-label:first-child { font-size: 16px; color: #1c1917; font-weight: 600; margin-bottom: 12px; }
+@media (max-width: 760px) {
+  .detail-cols { flex-direction: column; }
+  .detail-left { width: auto; border-right: none; border-bottom: 1px solid #ece9e6; }
+}
 .detail-header {
   display: flex;
   align-items: flex-start;
@@ -694,6 +712,8 @@ body {
 .repeat-next { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #57534e; margin-top: 8px; }
 .repeat-next input { font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid #d6d3d1; border-radius: 6px; }
 .repeat-hint { font-size: 12px; margin: 6px 0 0; }
+
+.project-prefix { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #a8a29e; margin-right: 2px; }
 
 /* ─── Bulk-assign Tasks within a Project ─── */
 .subtask-bulk-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; }

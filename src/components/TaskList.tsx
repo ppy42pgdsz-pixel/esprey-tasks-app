@@ -267,6 +267,7 @@ export default function TaskList({
                         {isExpanded ? '▾' : '▸'}
                       </button>
                     )}
+                    <span className="project-prefix">Project:</span>
                     <span className="cell-title">{task.title}</span>
                     {task.source === 'email' && <span className="tag">email</span>}
                     {task.recur_unit && task.recur_active !== 0 && (
