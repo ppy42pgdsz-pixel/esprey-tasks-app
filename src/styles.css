@@ -276,27 +276,29 @@ body {
 .bulk-bar .btn-danger { margin-left: auto; }
 .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #57534e; cursor: pointer; white-space: nowrap; }
 
-/* ─── Slide-over (task detail) ─── */
+/* ─── Bottom sheet (project / task detail) ─── */
 .detail-overlay {
   position: fixed;
   inset: 0;
   background: rgba(28, 25, 23, 0.35);
   z-index: 50;
   display: flex;
-  justify-content: flex-end;
+  align-items: flex-end;        /* dock the sheet to the bottom */
+  justify-content: center;
   animation: overlay-fade 0.15s ease;
 }
 @keyframes overlay-fade { from { opacity: 0; } to { opacity: 1; } }
 .detail-slideover {
   width: 100%;
-  max-width: 480px;
-  height: 100%;
+  height: 67vh;                 /* ~two-thirds tall; background stays visible above */
   background: #ffffff;
-  border-left: 1px solid #e7e5e4;
+  border-top: 1px solid #e7e5e4;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -10px 40px rgba(28, 25, 23, 0.22);
   overflow-y: auto;
-  animation: slideover-in 0.2s ease;
+  animation: sheet-up 0.22s ease;
 }
-@keyframes slideover-in { from { transform: translateX(24px); opacity: 0.5; } to { transform: translateX(0); opacity: 1; } }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
 /* ─── Task Detail ─── */
 .task-detail { padding: 24px; }
@@ -675,8 +677,8 @@ body {
 .subtask-title-cell { display: inline-flex; align-items: center; gap: 8px; padding-left: 18px; position: relative; min-width: 0; }
 .subtask-title-cell::before { content: ''; position: absolute; left: 2px; top: 50%; width: 10px; height: 1px; background: #cfccc8; }
 .subtask-row-text { min-width: 0; }
-.subtask-row-text.clickable { cursor: pointer; }
-.subtask-row-text.clickable:hover { text-decoration: underline; }
+.subtask-row.clickable-row { cursor: pointer; }
+.subtask-row.clickable-row:hover .subtask-row-text { text-decoration: underline; }
 .subtask-row.done .subtask-row-text { text-decoration: line-through; color: #a8a29e; }
 /* "from {owner} →" assigner label shown before assignee chips on a task */
 .assigner-chip { font-size: 12px; color: #a8a29e; white-space: nowrap; margin-right: 2px; }

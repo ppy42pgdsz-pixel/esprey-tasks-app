@@ -191,6 +191,8 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
   };
 
   const deleteSubtask = async (id: string) => {
+    const s = subtasks.find((x) => x.id === id);
+    if (!confirm(`Delete this task?${s ? `\n\n"${s.text}"` : ''}\n\nThis can't be undone.`)) return;
     await api.deleteSubtask(id);
     commitSubtasks(subtasks.filter((x) => x.id !== id));
   };
@@ -314,12 +316,11 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
       <div className="detail-controls">
         <select
           className="select-input"
-          value={task.status}
+          value={task.status === 'done' ? 'done' : 'active'}
           disabled={!isOwner}
-          onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
+          onChange={(e) => handleStatusChange(e.target.value === 'done' ? 'done' : 'in_progress')}
         >
-          <option value="todo">To Do</option>
-          <option value="in_progress">In Progress</option>
+          <option value="active">Active</option>
           <option value="done">Done</option>
         </select>
         <button className="btn-secondary sm" onClick={downloadInvite} title="Downloads a calendar file that opens in your desktop calendar app; add a Teams meeting there">

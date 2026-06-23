@@ -192,7 +192,8 @@ export default function TaskList({
     commitSubs(taskId, (subsByTask[taskId] ?? []).map((x) => (x.id === updated.id ? updated : x)));
   };
 
-  const delSub = async (taskId: string, id: string) => {
+  const delSub = async (taskId: string, id: string, text: string) => {
+    if (!confirm(`Delete this task?\n\n"${text}"\n\nThis can't be undone.`)) return;
     await api.deleteSubtask(id);
     commitSubs(taskId, (subsByTask[taskId] ?? []).filter((x) => x.id !== id));
   };
@@ -240,14 +241,16 @@ export default function TaskList({
 
                 <td>
                   {(() => {
+                    // Projects are binary: Active (anything not done) vs Done.
                     const ownsTask = (task.owner_email ?? '').toLowerCase() === meEmail || !task.owner_email;
+                    const isDone = task.status === 'done';
                     return (
                       <span
-                        className={`status-pill ${task.status}${ownsTask ? '' : ' static'}`}
-                        title={ownsTask ? `Mark as ${STATUS_LABEL[STATUS_NEXT[task.status]]}` : `Owned by ${task.owner_name || task.owner_email}`}
-                        onClick={ownsTask ? (e) => { e.stopPropagation(); onStatusChange(task, STATUS_NEXT[task.status]); } : undefined}
+                        className={`status-pill ${isDone ? 'done' : 'in_progress'}${ownsTask ? '' : ' static'}`}
+                        title={ownsTask ? `Mark as ${isDone ? 'Active' : 'Done'}` : `Owned by ${task.owner_name || task.owner_email}`}
+                        onClick={ownsTask ? (e) => { e.stopPropagation(); onStatusChange(task, isDone ? 'in_progress' : 'done'); } : undefined}
                       >
-                        {STATUS_LABEL[task.status]}
+                        {isDone ? 'Done' : 'Active'}
                       </span>
                     );
                   })()}
@@ -343,7 +346,7 @@ export default function TaskList({
                 const subAssignees = s.assignee_emails ?? [];
                 const assignerLabel = task.owner_name || (task.owner_email ? task.owner_email.split('@')[0] : '');
                 return (
-                  <tr key={s.id} className={`subtask-row ${s.status === 'done' ? 'done' : ''}`}>
+                  <tr key={s.id} className={`subtask-row clickable-row ${s.status === 'done' ? 'done' : ''}`} onClick={() => onSelectSubtask(task, s.id)}>
                     <td className="col-check" onClick={(e) => e.stopPropagation()}>
                       {ownsProject(task) && (
                         <input
@@ -359,7 +362,7 @@ export default function TaskList({
                       <span
                         className={`status-pill ${s.status}`}
                         title={`Mark as ${STATUS_LABEL[STATUS_NEXT[s.status]]}`}
-                        onClick={() => cycleSub(task.id, s)}
+                        onClick={(e) => { e.stopPropagation(); cycleSub(task.id, s); }}
                       >
                         {STATUS_LABEL[s.status]}
                       </span>
@@ -367,11 +370,7 @@ export default function TaskList({
                     <td>
                       <span className="subtask-title-cell">
                         <span className="subtask-tree" aria-hidden="true" />
-                        <span
-                          className="subtask-row-text clickable"
-                          onClick={() => onSelectSubtask(task, s.id)}
-                          title="Open this task"
-                        >
+                        <span className="subtask-row-text" title="Open this task">
                           {s.text}
                         </span>
                       </span>
@@ -399,7 +398,7 @@ export default function TaskList({
                     </td>
                     <td className="col-actions">
                       {ownsProject(task) && (
-                        <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete task" aria-label="Delete task">✕</button>
+                        <button className="subtask-del" onClick={(e) => { e.stopPropagation(); delSub(task.id, s.id, s.text); }} title="Delete task" aria-label="Delete task">✕</button>
                       )}
                     </td>
                   </tr>

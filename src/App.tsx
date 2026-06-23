@@ -9,7 +9,7 @@ import CompletedSubtasks from './components/CompletedSubtasks';
 import type { CompletedSubtask } from './types';
 import './styles.css';
 
-type FilterStatus = 'all' | 'todo' | 'in_progress' | 'completed';
+type FilterStatus = 'active' | 'completed';
 type QuickFilter = '' | 'overdue' | 'due_week' | 'awaiting' | 'assigned_me' | 'unassigned';
 
 const QUICK_FILTERS: [QuickFilter, string][] = [
@@ -31,7 +31,7 @@ export default function App() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('active');
   const [filterCompany, setFilterCompany] = useState<string>('');
   const [search, setSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('');
@@ -238,10 +238,7 @@ export default function App() {
   // Completed (archived) tasks live under the "Completed" view; everything else
   // shows only active (non-archived) tasks.
   const activeTasks = tasks.filter((t) => !t.archived);
-  const byStatus =
-    filterStatus === 'completed' ? tasks.filter((t) => t.archived)
-    : filterStatus === 'all' ? activeTasks
-    : activeTasks.filter((t) => t.status === filterStatus);
+  const byStatus = filterStatus === 'completed' ? tasks.filter((t) => t.archived) : activeTasks;
 
   const meEmailLower = (me?.email ?? '').toLowerCase();
   const personName = filterPerson
@@ -319,9 +316,7 @@ export default function App() {
   };
 
   const counts = {
-    all: activeTasks.length,
-    todo: activeTasks.filter((t) => t.status === 'todo').length,
-    in_progress: activeTasks.filter((t) => t.status === 'in_progress').length,
+    active: activeTasks.length,
     completed: tasks.filter((t) => t.archived).length,
   };
 
@@ -365,9 +360,7 @@ export default function App() {
           <>
             <div className="stats-row">
               {([
-                ['all', 'projects', counts.all],
-                ['todo', 'to do', counts.todo],
-                ['in_progress', 'in progress', counts.in_progress],
+                ['active', 'active', counts.active],
                 ['completed', 'completed', counts.completed],
               ] as [FilterStatus, string, number][]).map(([status, label, n]) => (
                 <button
@@ -456,8 +449,7 @@ export default function App() {
               onChange={(e) => e.target.value && handleBulkStatus(e.target.value as TaskStatus)}
             >
               <option value="">Set status…</option>
-              <option value="todo">To Do</option>
-              <option value="in_progress">In Progress</option>
+              <option value="in_progress">Active</option>
               <option value="done">Done</option>
             </select>
             <select
@@ -509,7 +501,7 @@ export default function App() {
                 <div className="state-message muted">
                   {filterStatus === 'completed'
                     ? 'Nothing completed yet. Finished projects and signed-off tasks will show here.'
-                    : filterStatus === 'all' && !filtersActive
+                    : !filtersActive
                       ? 'No projects yet. Add one above or forward an email to tasks@esprey.net'
                       : 'No projects match the current filters.'}
                 </div>
