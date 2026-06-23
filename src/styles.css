@@ -621,6 +621,13 @@ body {
 .subtask-file .file-name { flex: 1; min-width: 0; color: #4f46e5; text-decoration: none; font-size: 13px; word-break: break-word; }
 .subtask-file .file-name:hover { text-decoration: underline; }
 .file-summary { margin-top: 4px; font-size: 12px; color: #57534e; line-height: 1.4; }
+.file-del {
+  flex-shrink: 0;
+  background: none; border: 1px solid #f0d9d9;
+  color: #b91c1c; font-size: 12px; cursor: pointer;
+  padding: 1px 8px; border-radius: 6px;
+}
+.file-del:hover { background: #fef2f2; border-color: #e7c4c4; }
 .attach-btn {
   align-self: flex-start; cursor: pointer;
   font-size: 12px; font-weight: 600; color: #4f46e5;

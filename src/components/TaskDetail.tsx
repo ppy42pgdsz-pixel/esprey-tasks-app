@@ -140,7 +140,8 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
       setUploadingFor(null);
     }
   };
-  const removeAttachment = async (s: Subtask, attId: string) => {
+  const removeAttachment = async (s: Subtask, attId: string, name?: string | null) => {
+    if (!confirm(`Remove this file?${name ? `\n\n${name}` : ''}`)) return;
     await api.deleteAttachment(attId);
     setSubAttachments((prev) => ({ ...prev, [s.id]: (prev[s.id] ?? []).filter((a) => a.id !== attId) }));
   };
@@ -250,7 +251,8 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
       setUploadingTask(false);
     }
   };
-  const removeTaskAttachment = async (attId: string) => {
+  const removeTaskAttachment = async (attId: string, name?: string | null) => {
+    if (!confirm(`Remove this file?${name ? `\n\n${name}` : ''}`)) return;
     await api.deleteAttachment(attId);
     setAttachments((prev) => prev.filter((a) => a.id !== attId));
   };
@@ -420,21 +422,25 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
               <div className="subtask-file-row">
                 <a href={`/api/attachments/${a.id}`} target="_blank" rel="noreferrer" className="file-name">📎 {a.filename}</a>
                 {isOwner && (
-                  <button className="subtask-del" onClick={() => removeTaskAttachment(a.id)} title="Remove file" aria-label="Remove file">✕</button>
+                  <button className="file-del" onClick={() => removeTaskAttachment(a.id, a.filename)} title="Remove file">Remove</button>
                 )}
               </div>
               {a.summary && <div className="file-summary">{a.summary}</div>}
             </div>
           ))}
-          <label className="attach-btn">
-            {uploadingTask ? 'Uploading…' : '+ Attach file'}
-            <input
-              type="file"
-              hidden
-              disabled={uploadingTask}
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadTaskFile(f); e.target.value = ''; }}
-            />
-          </label>
+          {isOwner ? (
+            <label className="attach-btn">
+              {uploadingTask ? 'Uploading…' : '+ Attach file'}
+              <input
+                type="file"
+                hidden
+                disabled={uploadingTask}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadTaskFile(f); e.target.value = ''; }}
+              />
+            </label>
+          ) : attachments.length === 0 ? (
+            <span className="muted">No files</span>
+          ) : null}
         </div>
       </div>
 
@@ -658,7 +664,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
                       <div className="subtask-file-row">
                         <a href={`/api/attachments/${a.id}`} target="_blank" rel="noreferrer" className="file-name">📎 {a.filename}</a>
                         {canEditSub(s) && (
-                          <button className="subtask-del" onClick={() => removeAttachment(s, a.id)} title="Remove attachment" aria-label="Remove attachment">✕</button>
+                          <button className="file-del" onClick={() => removeAttachment(s, a.id, a.filename)} title="Remove file">Remove</button>
                         )}
                       </div>
                       {a.summary && <div className="file-summary">{a.summary}</div>}
