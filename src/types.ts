@@ -84,6 +84,23 @@ export interface CompletedSubtask {
   assignee_names?: string | null;
 }
 
+export interface ReportTask {
+  text: string;
+  status: string;
+  due_date: number | null;
+  accepted_at: number | null;
+  assignee_names: string | null;
+}
+export interface ReportProject {
+  id: string;
+  title: string;
+  company_name: string | null;
+  company_id: string | null;
+  created_at: number;
+  due_date: number | null;
+  tasks: ReportTask[];
+}
+
 export interface Company {
   id: string;
   name: string;

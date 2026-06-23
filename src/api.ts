@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, TaskEvent, CompletedSubtask, Subtask, User, UserRole } from './types';
+import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, TaskEvent, CompletedSubtask, ReportProject, Subtask, User, UserRole } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -30,6 +30,11 @@ export const api = {
 
   extractTasks: (text: string) =>
     request<{ tasks: string[] }>('/api/ai/extract-tasks', { method: 'POST', body: JSON.stringify({ text }) }),
+
+  getReport: (company_id?: string) =>
+    request<{ generated_at: number; projects: ReportProject[] }>(`/api/report${company_id ? `?company_id=${encodeURIComponent(company_id)}` : ''}`),
+  emailReport: (company_id?: string) =>
+    request<{ ok: boolean; projects: number }>('/api/report', { method: 'POST', body: JSON.stringify(company_id ? { company_id } : {}) }),
 
   createTask: (data: {
     title: string;

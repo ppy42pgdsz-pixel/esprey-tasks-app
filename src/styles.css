@@ -29,6 +29,16 @@ body {
 }
 .logo { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; color: #1c1917; }
 .header-actions { display: flex; align-items: center; gap: 8px; }
+.header-side { flex: 1; display: flex; align-items: center; gap: 6px; }
+.header-right { justify-content: flex-end; }
+.header-title { flex: 0 0 auto; display: flex; align-items: center; gap: 9px; }
+.app-icon { display: inline-flex; }
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 9px;
+  border: 1px solid transparent; background: none; color: #57534e; cursor: pointer;
+}
+.icon-btn:hover { background: #f1efed; color: #1c1917; }
 
 /* ─── Filter Nav ─── */
 .filter-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
@@ -795,4 +805,27 @@ body {
 @media (max-width: 700px) {
   .main { padding: 16px; }
   .header { padding: 12px 16px 0; }
+}
+
+/* ─── Outstanding report ─── */
+.report-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; }
+.report-controls .select-input { min-width: 180px; }
+.report-print { padding: 4px 2px; }
+.report-head { margin-bottom: 16px; }
+.report-title { font-size: 20px; font-weight: 700; margin: 0; color: #1c1917; }
+.report-sub { font-size: 13px; color: #78716c; margin-top: 3px; }
+.report-project { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #ece9e6; break-inside: avoid; }
+.report-project-head { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
+.report-project-title { font-weight: 600; font-size: 15px; color: #1c1917; }
+.report-project-meta { font-size: 12px; color: #78716c; }
+.report-tasks { margin: 0; padding-left: 18px; }
+.report-task { font-size: 13px; margin: 3px 0; color: #292524; }
+.report-task-meta { color: #78716c; font-size: 12px; margin-left: 6px; }
+
+@media print {
+  .no-print { display: none !important; }
+  body * { visibility: hidden; }
+  .report-print, .report-print * { visibility: visible; }
+  .report-print { position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
+  .settings-page, .settings-page-overlay { box-shadow: none; background: #fff; }
 }

@@ -10,9 +10,9 @@ const STATUS_NEXT: Record<TaskStatus, TaskStatus> = {
 const STATUS_LABEL: Record<TaskStatus, string> = { todo: 'To Do', in_progress: 'In Progress', done: 'Done' };
 const STATUS_RANK: Record<TaskStatus, number> = { todo: 0, in_progress: 1, done: 2 };
 
-const COL_COUNT = 7; // check, status, title, company, assigned, due, actions
+const COL_COUNT = 8; // check, status, title, company, assigned, due, added, actions
 
-type SortKey = 'status' | 'title' | 'company' | 'due';
+type SortKey = 'status' | 'title' | 'company' | 'due' | 'added';
 type SortDir = 'asc' | 'desc';
 
 // Distinct soft colours so each company is easy to tell apart at a glance.
@@ -32,6 +32,10 @@ function companyColor(key: string): [string, string] {
 // for both task and subtask due dates.
 function formatDueDate(ms: number) {
   return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+// created_at is a real moment (not a calendar day), so format it in local time.
+function formatAddedDate(ms: number) {
+  return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 const todayUtcStart = () => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
 // The earliest relevant due date for a task row: its own due date or the
@@ -132,6 +136,7 @@ export default function TaskList({
       case 'title': cmp = a.title.localeCompare(b.title); break;
       case 'company': cmp = (a.company_name ?? '').localeCompare(b.company_name ?? ''); break;
       case 'status': cmp = STATUS_RANK[a.status] - STATUS_RANK[b.status]; break;
+      case 'added': cmp = a.created_at - b.created_at; break;
     }
     return sortDir === 'asc' ? cmp : -cmp;
   });
@@ -218,6 +223,7 @@ export default function TaskList({
           {header('company', 'Company')}
           <th>Assigned</th>
           {header('due', 'Due')}
+          {header('added', 'Added')}
           <th className="col-actions"></th>
         </tr>
       </thead>
@@ -301,6 +307,7 @@ export default function TaskList({
                     return <span className={overdue ? 'due-overdue' : 'cell-muted'}>{formatDueDate(d)}</span>;
                   })()}
                 </td>
+                <td><span className="cell-muted added-cell">{formatAddedDate(task.created_at)}</span></td>
                 <td className="col-actions">
                   <button className="row-open" onClick={(e) => { e.stopPropagation(); onSelect(task); }}>Open</button>
                 </td>
@@ -397,6 +404,7 @@ export default function TaskList({
                         <span className={subOverdue ? 'due-overdue' : 'cell-muted'}>{formatDueDate(s.due_date)}</span>
                       ) : <span className="cell-muted">—</span>}
                     </td>
+                    <td></td>
                     <td className="col-actions">
                       {ownsProject(task) && (
                         <button className="subtask-del" onClick={(e) => { e.stopPropagation(); delSub(task.id, s.id, s.text); }} title="Delete task" aria-label="Delete task">✕</button>
