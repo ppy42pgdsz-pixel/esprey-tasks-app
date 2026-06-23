@@ -86,6 +86,14 @@ export default function App() {
     const res = await api.setUserCompanies(email, companyIds);
     setUsers((prev) => prev.map((u) => (u.email === email ? { ...u, company_ids: res.company_ids } : u)));
   };
+  // Edit your own display name (the name others see on your projects/tasks).
+  const handleRenameSelf = async (name: string) => {
+    if (!me) return;
+    const updated = await api.updateUser(me.email, { name });
+    setMe({ ...me, name: updated.name });
+    setUsers((prev) => prev.map((u) => (u.email === me.email ? { ...u, name: updated.name } : u)));
+    await loadTasks(); // owner/assignee names are joined server-side, so refresh the list
+  };
 
   // Load by company only; status is filtered client-side so the stat cards
   // always show accurate counts for every status.
@@ -348,6 +356,7 @@ export default function App() {
           onCreateCompany={handleNewCompany}
           onRenameCompany={handleRenameCompany}
           onDeleteCompany={handleDeleteCompany}
+          onRenameSelf={handleRenameSelf}
         />
       )}
 

@@ -678,6 +678,8 @@ body {
 .subtask-row-text.clickable { cursor: pointer; }
 .subtask-row-text.clickable:hover { text-decoration: underline; }
 .subtask-row.done .subtask-row-text { text-decoration: line-through; color: #a8a29e; }
+/* "from {owner} →" assigner label shown before assignee chips on a task */
+.assigner-chip { font-size: 12px; color: #a8a29e; white-space: nowrap; margin-right: 2px; }
 
 /* ─── Recurrence ─── */
 .repeat-tag { background: #ecfdf5; color: #047857; }

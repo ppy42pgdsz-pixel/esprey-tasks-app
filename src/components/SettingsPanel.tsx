@@ -16,17 +16,28 @@ interface Props {
   onAddAlias: (email: string, alias: string) => Promise<void>;
   onRemoveAlias: (email: string, alias: string) => Promise<void>;
   onSetUserCompanies: (email: string, companyIds: string[]) => Promise<void>;
+  onRenameSelf: (name: string) => Promise<void>;
 }
 
 export default function SettingsPanel(props: Props) {
   const {
     companies, me, users, onClose,
     onCreateCompany, onRenameCompany, onDeleteCompany,
-    onCreateUser, onDeleteUser, onAddAlias, onRemoveAlias, onSetUserCompanies,
+    onCreateUser, onDeleteUser, onAddAlias, onRemoveAlias, onSetUserCompanies, onRenameSelf,
   } = props;
 
   const isAdmin = me?.role === 'admin';
   const [view, setView] = useState<'menu' | 'team'>('menu');
+
+  // Your profile (display name)
+  const [myName, setMyName] = useState(me?.name ?? '');
+  const [savingName, setSavingName] = useState(false);
+  const saveMyName = async () => {
+    const name = myName.trim();
+    if (!name || name === me?.name) return;
+    setSavingName(true);
+    try { await onRenameSelf(name); } catch (e) { alert(e instanceof Error ? e.message : 'Could not save name'); } finally { setSavingName(false); }
+  };
 
   // Daily digest manual send
   const [digestBusy, setDigestBusy] = useState<'me' | 'all' | null>(null);
@@ -206,6 +217,25 @@ export default function SettingsPanel(props: Props) {
           <span className="header-spacer" />
         </div>
         {me && <p className="muted center">Signed in as {me.name} ({me.role})</p>}
+
+        {me && (
+          <section className="settings-card">
+            <div className="settings-card-label">Your profile</div>
+            <p className="muted" style={{ marginTop: 0 }}>This is the name other people see on your projects and tasks.</p>
+            <div className="inline-add">
+              <input
+                className="text-input"
+                placeholder="Your display name"
+                value={myName}
+                onChange={(e) => setMyName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveMyName()}
+              />
+              <button className="btn-primary sm" onClick={saveMyName} disabled={savingName || !myName.trim() || myName.trim() === me.name}>
+                {savingName ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </section>
+        )}
 
         {isAdmin && (
           <section className="settings-card">

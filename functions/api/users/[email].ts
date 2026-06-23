@@ -26,9 +26,15 @@ async function isAdmin(ctx: EventContext<Env, string, Record<string, unknown>>):
 }
 
 export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
-  if (!(await isAdmin(ctx))) return json({ error: 'Admin only' }, 403);
   const email = decodeURIComponent((ctx.params as { email: string }).email).toLowerCase();
+  const meEmail = ((ctx.data as { userEmail?: string }).userEmail ?? '').toLowerCase();
+  const admin = await isAdmin(ctx);
   const body = await ctx.request.json<{ name?: string; role?: string }>();
+
+  // Admins can edit anyone. A non-admin may edit only their own display name
+  // (never their role).
+  const editingSelfNameOnly = email === meEmail && !('role' in body);
+  if (!admin && !editingSelfNameOnly) return json({ error: 'Not allowed' }, 403);
 
   const updates: string[] = [];
   const values: unknown[] = [];
@@ -38,6 +44,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     updates.push('name = ?'); values.push(name);
   }
   if ('role' in body) {
+    if (!admin) return json({ error: 'Only an admin can change roles' }, 403);
     updates.push('role = ?'); values.push(body.role === 'admin' ? 'admin' : 'member');
   }
   if (updates.length === 0) return json({ error: 'No valid fields' }, 400);

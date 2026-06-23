@@ -350,6 +350,7 @@ export default function TaskList({
               {isExpanded && (subsByTask[task.id] ?? []).filter((s) => showCompleted || !s.accepted_at).map((s) => {
                 const subOverdue = s.due_date != null && s.due_date < todayUtcStart();
                 const subAssignees = s.assignee_emails ?? [];
+                const assignerLabel = task.owner_name || (task.owner_email ? task.owner_email.split('@')[0] : '');
                 return (
                   <tr key={s.id} className={`subtask-row ${s.status === 'done' ? 'done' : ''}`}>
                     <td className="col-check" onClick={(e) => e.stopPropagation()}>
@@ -393,6 +394,9 @@ export default function TaskList({
                     <td>
                       {subAssignees.length > 0 ? (
                         <span className="assigned-cell">
+                          {assignerLabel && (
+                            <span className="assigner-chip" title={`Assigned by ${assignerLabel}`}>{assignerLabel} →</span>
+                          )}
                           {subAssignees.map((em) => <span key={em} className="assignee-chip">{userName(em)}</span>)}
                         </span>
                       ) : <span className="cell-muted">—</span>}
