@@ -5,6 +5,7 @@
  */
 
 import { meFromCtx, json } from './_lib';
+import { buildReport, fmtDate } from './reports/_shared';
 
 interface Env {
   DB: D1Database;
@@ -13,53 +14,12 @@ interface Env {
   APP_DOMAIN?: string;
 }
 
-interface ProjectRow {
-  id: string;
-  title: string;
-  company_name: string | null;
-  company_id: string | null;
-  created_at: number;
-  due_date: number | null;
-}
-interface TaskRow {
-  text: string;
-  status: string;
-  due_date: number | null;
-  accepted_at: number | null;
-  assignee_names: string | null;
-}
-
-const fmtDate = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-/** Build the structured outstanding report for a user (projects they own). */
-async function buildReport(env: Env, me: string, companyId: string | null) {
-  const params: unknown[] = [me];
-  let where = `owner_email = ? AND status != 'done' AND completed_at IS NULL`;
-  if (companyId) { where += ' AND company_id = ?'; params.push(companyId); }
-
-  const { results: projects } = await env.DB
-    .prepare(`SELECT id, title, company_name, company_id, created_at, due_date FROM tasks WHERE ${where} ORDER BY company_name IS NULL, company_name, created_at DESC`)
-    .bind(...params)
-    .all<ProjectRow>();
-
-  const out = [];
-  for (const p of projects) {
-    const { results: tasks } = await env.DB.prepare(
-      `SELECT s.text, s.status, s.due_date, s.accepted_at,
-              (SELECT GROUP_CONCAT(DISTINCT u.name) FROM subtask_assignees sa JOIN users u ON u.email = sa.user_email WHERE sa.subtask_id = s.id) AS assignee_names
-       FROM subtasks s WHERE s.task_id = ? AND s.accepted_at IS NULL
-       ORDER BY s.position ASC, s.created_at ASC`,
-    ).bind(p.id).all<TaskRow>();
-    out.push({ ...p, tasks });
-  }
-  return out;
-}
 
 export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const me = await meFromCtx(ctx.env.DB, ctx);
   const companyId = new URL(ctx.request.url).searchParams.get('company_id');
-  const projects = await buildReport(ctx.env, me, companyId);
+  const projects = await buildReport(ctx.env.DB, me, companyId);
   return json({ generated_at: Date.now(), projects });
 };
 
@@ -69,7 +29,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const body = await ctx.request.json<{ company_id?: string }>().catch(() => ({} as { company_id?: string }));
   const companyId = body.company_id ?? null;
 
-  const projects = await buildReport(ctx.env, me, companyId);
+  const projects = await buildReport(ctx.env.DB, me, companyId);
   const user = await ctx.env.DB.prepare('SELECT name FROM users WHERE email = ?').bind(me).first<{ name: string }>();
   const firstName = (user?.name || '').trim().split(/\s+/)[0] || 'there';
   const scope = companyId ? (projects[0]?.company_name ?? 'the selected company') : 'all companies';

@@ -1,0 +1,4 @@
+# SPA fallback: client-side routes (e.g. /reports-view) resolve to the app shell
+# on a hard refresh or direct load. API Functions (/api/*) are matched first, so
+# they are unaffected by this catch-all.
+/*    /index.html   200

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Company, ReportProject } from '../types';
 import { api } from '../api';
 
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function ReportsPanel({ companies, onClose }: Props) {
+  const navigate = useNavigate();
   const [companyId, setCompanyId] = useState('');
   const [projects, setProjects] = useState<ReportProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +30,13 @@ export default function ReportsPanel({ companies, onClose }: Props) {
   }, [companyId]);
 
   const totalTasks = projects.reduce((n, p) => n + p.tasks.length, 0);
+
+  const openPdf = () => {
+    const file = `Outstanding - ${scopeLabel}.pdf`;
+    const qs = new URLSearchParams({ file });
+    if (companyId) qs.set('company', companyId);
+    navigate(`/reports-view?${qs.toString()}`);
+  };
 
   const emailMe = async () => {
     setEmailing(true);
@@ -56,7 +65,7 @@ export default function ReportsPanel({ companies, onClose }: Props) {
             <option value="">All companies</option>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <button className="btn-secondary" onClick={() => window.print()} disabled={loading}>⬇ Save as PDF</button>
+          <button className="btn-secondary" onClick={openPdf} disabled={loading}>📄 View / Save PDF</button>
           <button className="btn-primary" onClick={emailMe} disabled={loading || emailing}>{emailing ? 'Sending…' : '✉ Email to me'}</button>
         </div>
         {msg && <p className="muted center no-print" style={{ marginTop: 4 }}>{msg}</p>}
