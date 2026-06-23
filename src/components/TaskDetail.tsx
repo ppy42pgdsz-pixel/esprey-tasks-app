@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
-import type { Task, TaskStatus, Company, TaskAttachment, Subtask, User } from '../types';
+import type { Task, TaskStatus, Company, TaskAttachment, TaskEvent, Subtask, User } from '../types';
 import { api } from '../api';
+
+const EVENT_ICON: Record<string, string> = {
+  created: '✨', completed: '✅', reopened: '↩️', subtask_added: '➕',
+  subtask_done: '☑️', accepted: '✔️', reinstated: '↩️', assigned: '👤',
+};
+function fmtEventTime(ms: number): string {
+  return new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
 
 /**
  * Split pasted text into individual subtask strings. Handles newline-separated
@@ -42,6 +50,8 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
   const [subAttachments, setSubAttachments] = useState<Record<string, TaskAttachment[]>>({});
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [recurInterval, setRecurInterval] = useState(task.recur_interval ?? 1);
+  const [events, setEvents] = useState<TaskEvent[]>([]);
+  const [showActivity, setShowActivity] = useState(false);
 
   const doneCount = subtasks.filter((s) => s.status === 'done').length;
   const meEmail = (me?.email ?? '').toLowerCase();
@@ -105,6 +115,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
 
   useEffect(() => {
     api.listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
+    if (isOwner) api.listEvents(task.id).then(setEvents).catch(() => setEvents([]));
     api.listSubtasks(task.id)
       .then((s) => {
         setSubtasks(s);
@@ -665,6 +676,37 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
             <div className="detail-section">
               <div className="section-label">Original email</div>
               <div className="original-body">{task.original_body}</div>
+            </div>
+          )}
+
+          {/* Activity timeline — owner only, collapsed by default to keep the panel calm */}
+          {isOwner && events.length > 0 && (
+            <div className="detail-section activity-section">
+              <button
+                className="activity-toggle link-btn"
+                onClick={() => {
+                  const next = !showActivity;
+                  setShowActivity(next);
+                  if (next) api.listEvents(task.id).then(setEvents).catch(() => {});
+                }}
+              >
+                {showActivity ? '▾' : '▸'} Activity ({events.length})
+              </button>
+              {showActivity && (
+                <ul className="activity-list">
+                  {events.map((e) => (
+                    <li key={e.id} className="activity-item">
+                      <span className="activity-icon">{EVENT_ICON[e.type] ?? '•'}</span>
+                      <div className="activity-body">
+                        <div className="activity-detail">{e.detail}</div>
+                        <div className="activity-meta">
+                          {e.actor_name || (e.actor_email ? e.actor_email.split('@')[0] : 'System')} · {fmtEventTime(e.created_at)}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 

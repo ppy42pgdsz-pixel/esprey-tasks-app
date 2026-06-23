@@ -3,7 +3,7 @@
  * POST /api/tasks/:id/subtasks — add a subtask { text }
  */
 
-import { meFromCtx, canAccessTask, isTaskOwner } from '../../_lib';
+import { meFromCtx, canAccessTask, isTaskOwner, logEvent } from '../../_lib';
 
 interface Env { DB: D1Database }
 
@@ -61,6 +61,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   await ctx.env.DB.prepare(
     'INSERT INTO subtasks (id, task_id, text, done, position, created_at) VALUES (?, ?, ?, 0, ?, ?)',
   ).bind(sid, id, text.slice(0, 300), position, now).run();
+
+  await logEvent(ctx.env.DB, id, me, 'subtask_added', `Added subtask: ${text.slice(0, 120)}`);
 
   const created = await ctx.env.DB.prepare('SELECT * FROM subtasks WHERE id = ?').bind(sid).first();
   return json(created, 201);

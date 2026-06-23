@@ -3,7 +3,7 @@
  * DELETE /api/subtasks/:id — delete a subtask
  */
 
-import { meFromCtx, isTaskOwner, isSubtaskAssignee } from '../_lib';
+import { meFromCtx, isTaskOwner, isSubtaskAssignee, logEvent } from '../_lib';
 
 interface Env { DB: D1Database }
 
@@ -26,7 +26,7 @@ async function ownsSubtask(ctx: { env: Env; data: Record<string, unknown> }, sub
 export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
   const me = await meFromCtx(ctx.env.DB, ctx);
-  const sub = await ctx.env.DB.prepare('SELECT task_id, accepted_at FROM subtasks WHERE id = ?').bind(id).first<{ task_id: string; accepted_at: number | null }>();
+  const sub = await ctx.env.DB.prepare('SELECT task_id, accepted_at, text FROM subtasks WHERE id = ?').bind(id).first<{ task_id: string; accepted_at: number | null; text: string }>();
   if (!sub) return json({ error: 'Not found' }, 404);
   const owner = await isTaskOwner(ctx.env.DB, sub.task_id, me);
   // Owner can edit anything; an assignee may update status + shared notes only.
@@ -95,6 +95,17 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
 
   values.push(id);
   await ctx.env.DB.prepare(`UPDATE subtasks SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+
+  // Activity timeline: log sign-off and member-done transitions.
+  const label = sub.text.slice(0, 120);
+  if ('accepted' in body) {
+    if (body.accepted) await logEvent(ctx.env.DB, sub.task_id, me, 'accepted', `Signed off: ${label}`);
+    else await logEvent(ctx.env.DB, sub.task_id, me, 'reinstated', `Sent back: ${label}`);
+  } else if (('status' in body || 'done' in body)) {
+    const becameDone = 'status' in body ? body.status === 'done' : !!body.done;
+    // A member marking done starts the sign-off loop; the owner's own done auto-accepts.
+    if (becameDone && !owner) await logEvent(ctx.env.DB, sub.task_id, me, 'subtask_done', `Marked done (awaiting sign-off): ${label}`);
+  }
 
   const updated = await ctx.env.DB.prepare('SELECT * FROM subtasks WHERE id = ?').bind(id).first();
   if (!updated) return json({ error: 'Not found' }, 404);

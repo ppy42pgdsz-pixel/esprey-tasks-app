@@ -85,6 +85,7 @@ async function purgeOldCompleted(env: Env): Promise<number> {
       env.DB.prepare('DELETE FROM subtasks WHERE task_id = ?').bind(id),
       env.DB.prepare('DELETE FROM task_shares WHERE task_id = ?').bind(id),
       env.DB.prepare('DELETE FROM task_attachments WHERE task_id = ?').bind(id),
+      env.DB.prepare('DELETE FROM task_events WHERE task_id = ?').bind(id),
       env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id),
     ]);
   }
@@ -266,6 +267,12 @@ async function generateRecurring(env: Env): Promise<number> {
       )
       .run();
 
+    try {
+      await env.DB.prepare(
+        'INSERT INTO task_events (id, task_id, actor_email, type, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      ).bind(nanoid(), newId, null, 'created', 'Created automatically (repeating task)', now).run();
+    } catch (e) { console.error('failed to log recurrence create event:', e); }
+
     // Clone subtasks (fresh state) + their assignees and contacts.
     const { results: subs } = await env.DB
       .prepare('SELECT id, text, position, instructions, due_date FROM subtasks WHERE task_id = ? ORDER BY position ASC, created_at ASC')
@@ -433,6 +440,15 @@ export default {
         now,
       )
       .run();
+
+    // Activity timeline: record that this task came in from an email.
+    try {
+      await env.DB.prepare(
+        'INSERT INTO task_events (id, task_id, actor_email, type, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      ).bind(nanoid(), id, ownerEmail, 'created', `Created from email: ${subject.slice(0, 120)}`, now).run();
+    } catch (e) {
+      console.error('failed to log create event:', e);
+    }
 
     // Insert any subtasks Claude extracted.
     if (task.subtasks.length > 0) {

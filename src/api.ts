@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, Subtask, User, UserRole } from './types';
+import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, TaskEvent, Subtask, User, UserRole } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -23,6 +23,8 @@ export const api = {
   },
 
   getTask: (id: string) => request<Task>(`/api/tasks/${id}`),
+
+  listEvents: (taskId: string) => request<TaskEvent[]>(`/api/tasks/${taskId}/events`),
 
   createTask: (data: {
     title: string;

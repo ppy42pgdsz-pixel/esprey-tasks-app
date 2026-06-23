@@ -8,6 +8,21 @@ import SettingsPanel from './components/SettingsPanel';
 import './styles.css';
 
 type FilterStatus = 'all' | 'todo' | 'in_progress' | 'completed';
+type QuickFilter = '' | 'overdue' | 'due_week' | 'awaiting' | 'assigned_me' | 'unassigned';
+
+const QUICK_FILTERS: [QuickFilter, string][] = [
+  ['overdue', 'Overdue'],
+  ['due_week', 'Due this week'],
+  ['awaiting', 'Awaiting my sign-off'],
+  ['assigned_me', 'Assigned to me'],
+  ['unassigned', 'Unassigned'],
+];
+
+const dayStartUtc = () => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+const nextDueOf = (t: Task): number | null => {
+  const ds = [t.due_date, t.min_subtask_due].filter((d): d is number => typeof d === 'number');
+  return ds.length ? Math.min(...ds) : null;
+};
 
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -16,6 +31,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterCompany, setFilterCompany] = useState<string>('');
+  const [search, setSearch] = useState('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('');
+  const [filterPerson, setFilterPerson] = useState<string>('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
   const openTask = (task: Task) => { setFocusedSubtaskId(null); setSelectedTask(task); };
@@ -186,10 +204,40 @@ export default function App() {
   // Completed (archived) tasks live under the "Completed" view; everything else
   // shows only active (non-archived) tasks.
   const activeTasks = tasks.filter((t) => !t.archived);
-  const visibleTasks =
+  const byStatus =
     filterStatus === 'completed' ? tasks.filter((t) => t.archived)
     : filterStatus === 'all' ? activeTasks
     : activeTasks.filter((t) => t.status === filterStatus);
+
+  const meEmailLower = (me?.email ?? '').toLowerCase();
+  const personName = filterPerson
+    ? (users.find((u) => u.email.toLowerCase() === filterPerson)?.name ?? '')
+    : '';
+  const today = dayStartUtc();
+  const weekEnd = today + 7 * 24 * 60 * 60 * 1000;
+  const matchesQuick = (t: Task): boolean => {
+    const d = nextDueOf(t);
+    switch (quickFilter) {
+      case 'overdue': return d != null && d < today && t.status !== 'done';
+      case 'due_week': return d != null && d >= today && d <= weekEnd;
+      case 'awaiting': return (t.pending_signoff ?? 0) > 0 && (t.owner_email ?? '').toLowerCase() === meEmailLower;
+      case 'assigned_me': return (t.assigned_to_me ?? 0) > 0;
+      case 'unassigned': return !(t.assignee_names && t.assignee_names.trim());
+      default: return true;
+    }
+  };
+  const matchesPerson = (t: Task): boolean => {
+    if (!personName) return true;
+    const names = (t.assignee_names ?? '').split(',').map((s) => s.trim());
+    return names.includes(personName);
+  };
+  const q = search.trim().toLowerCase();
+  const visibleTasks = byStatus
+    .filter((t) => !q || t.title.toLowerCase().includes(q))
+    .filter(matchesQuick)
+    .filter(matchesPerson);
+  const filtersActive = !!(q || quickFilter || filterPerson || filterCompany);
+  const clearAllFilters = () => { setSearch(''); setQuickFilter(''); setFilterPerson(''); setFilterCompany(''); };
 
   const allSelected = visibleTasks.length > 0 && visibleTasks.every((t) => selectedIds.has(t.id));
   const toggleSelectAll = () => {
@@ -299,6 +347,14 @@ export default function App() {
             </div>
 
             <div className="list-controls">
+              <input
+                className="text-input search-input"
+                type="search"
+                placeholder="Search tasks…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+
               <select
                 className="select-input"
                 value={filterCompany}
@@ -310,15 +366,40 @@ export default function App() {
                 ))}
               </select>
 
-              {filterCompany && (
-                <button className="link-btn" onClick={() => setFilterCompany('')}>
-                  Clear filter
+              {users.length > 0 && (
+                <select
+                  className="select-input"
+                  value={filterPerson}
+                  onChange={(e) => setFilterPerson(e.target.value)}
+                >
+                  <option value="">Anyone</option>
+                  {users.map((u) => (
+                    <option key={u.email} value={u.email.toLowerCase()}>{u.name}</option>
+                  ))}
+                </select>
+              )}
+
+              {filtersActive && (
+                <button className="link-btn" onClick={clearAllFilters}>
+                  Clear filters
                 </button>
               )}
 
               <button className="btn-secondary spacer" onClick={handleRefresh} disabled={refreshing} title="Reload tasks">
                 {refreshing ? 'Refreshing…' : '↻ Refresh'}
               </button>
+            </div>
+
+            <div className="quick-filters">
+              {QUICK_FILTERS.map(([key, label]) => (
+                <button
+                  key={key}
+                  className={`chip ${quickFilter === key ? 'active' : ''}`}
+                  onClick={() => setQuickFilter(quickFilter === key ? '' : key)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </>
         )}
@@ -367,10 +448,15 @@ export default function App() {
         ) : visibleTasks.length === 0 ? (
           <div className="state-card">
             <div className="state-message muted">
-              {filterStatus === 'all' && !filterCompany
+              {filterStatus === 'all' && !filtersActive
                 ? 'No tasks yet. Add one above or forward an email to tasks@esprey.net'
                 : 'No tasks match the current filters.'}
             </div>
+            {filtersActive && (
+              <button className="link-btn" onClick={clearAllFilters} style={{ marginTop: 8 }}>
+                Clear filters
+              </button>
+            )}
           </div>
         ) : (
           <TaskList

@@ -3,7 +3,7 @@
  * POST /api/tasks        — create a task manually
  */
 
-import { resolvePrimary, rawEmail } from './_lib';
+import { resolvePrimary, rawEmail, logEvent } from './_lib';
 
 interface Env {
   DB: D1Database;
@@ -64,6 +64,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     me, me,        // subtask_total
     me, me,        // subtask_done
     me, me, me,    // archived CASE (owner check, has-assigned, open-count)
+    me,            // assigned_to_me
     me, me, me,    // WHERE access (owner, shared, assigned)
   ];
   if (company_id) { conditions.push('t.company_id = ?'); params.push(company_id); }
@@ -76,7 +77,8 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     ${archived} AS archived,
     (SELECT GROUP_CONCAT(DISTINCT u2.name) FROM subtask_assignees sa JOIN subtasks st ON st.id = sa.subtask_id JOIN users u2 ON u2.email = sa.user_email WHERE st.task_id = t.id) AS assignee_names,
     (SELECT GROUP_CONCAT(DISTINCT c.name) FROM subtask_contacts sc JOIN subtasks st ON st.id = sc.subtask_id JOIN contacts c ON c.id = sc.contact_id WHERE st.task_id = t.id) AS assigned_contact_names,
-    (SELECT MIN(st.due_date) FROM subtasks st WHERE st.task_id = t.id AND st.accepted_at IS NULL AND st.due_date IS NOT NULL) AS min_subtask_due
+    (SELECT MIN(st.due_date) FROM subtasks st WHERE st.task_id = t.id AND st.accepted_at IS NULL AND st.due_date IS NOT NULL) AS min_subtask_due,
+    (SELECT COUNT(*) FROM subtask_assignees sa JOIN subtasks st ON st.id = sa.subtask_id WHERE st.task_id = t.id AND sa.user_email = ?) AS assigned_to_me
     FROM tasks t
     LEFT JOIN users u ON u.email = t.owner_email
     WHERE ${conditions.join(' AND ')}
@@ -151,6 +153,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       await ctx.env.DB.batch(emails.map((e) => ctx.env.DB.prepare('INSERT OR IGNORE INTO task_shares (task_id, user_email) VALUES (?, ?)').bind(id, e)));
     }
   }
+
+  await logEvent(ctx.env.DB, id, me, 'created', recurUnit ? 'Task created (repeating)' : 'Task created');
 
   const task = await ctx.env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(id).first();
   return json(task, 201);

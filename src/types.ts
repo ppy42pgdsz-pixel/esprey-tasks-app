@@ -40,6 +40,7 @@ export interface Task {
   assignee_names?: string | null; // comma-joined member names assigned across subtasks
   assigned_contact_names?: string | null; // comma-joined contact names assigned across subtasks
   min_subtask_due?: number | null; // earliest due date among open subtasks
+  assigned_to_me?: number; // >0 if the current viewer is assigned a subtask in this task
 }
 
 export type UserRole = 'admin' | 'member';
@@ -82,6 +83,16 @@ export interface Contact {
   email: string | null;
   company_id: string | null;
   is_favourite: number; // 1 = true, 0 = false
+  created_at: number;
+}
+
+export interface TaskEvent {
+  id: string;
+  task_id: string;
+  actor_email: string | null;
+  actor_name?: string | null;
+  type: string; // created | completed | reopened | subtask_added | subtask_done | accepted | reinstated | assigned
+  detail: string;
   created_at: number;
 }
 

@@ -4,7 +4,7 @@
  * DELETE /api/tasks/:id   — delete task
  */
 
-import { meFromCtx, canAccessTask, isTaskOwner } from '../_lib';
+import { meFromCtx, canAccessTask, isTaskOwner, logEvent } from '../_lib';
 
 interface Env {
   DB: D1Database;
@@ -31,6 +31,11 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const me = await meFromCtx(ctx.env.DB, ctx);
   if (!(await isTaskOwner(ctx.env.DB, id, me))) return json({ error: 'Only the owner can edit this task' }, 403);
   const body = await ctx.request.json<Record<string, unknown>>();
+
+  // Capture the prior status so we can log complete/reopen transitions.
+  const prior = 'status' in body
+    ? await ctx.env.DB.prepare('SELECT status FROM tasks WHERE id = ?').bind(id).first<{ status: string }>()
+    : null;
 
   const allowed = ['title', 'description', 'status', 'priority', 'due_date', 'draft_reply', 'company_id', 'company_name', 'contact_id', 'contact_name', 'recur_interval', 'recur_unit', 'recur_next_at', 'recur_active'];
   const updates: string[] = [];
@@ -63,6 +68,12 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     .bind(...values)
     .run();
 
+  // Log a completed/reopened transition (only when the status actually changed).
+  if (prior && 'status' in body && body.status !== prior.status) {
+    if (body.status === 'done') await logEvent(ctx.env.DB, id, me, 'completed', 'Marked the task complete');
+    else if (prior.status === 'done') await logEvent(ctx.env.DB, id, me, 'reopened', 'Reopened the task');
+  }
+
   const task = await ctx.env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(id).first();
   if (!task) return json({ error: 'Not found' }, 404);
   return json(task);
@@ -77,6 +88,7 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
     ctx.env.DB.prepare('DELETE FROM subtasks WHERE task_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM task_shares WHERE task_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM task_attachments WHERE task_id = ?').bind(id),
+    ctx.env.DB.prepare('DELETE FROM task_events WHERE task_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id),
   ]);
   return json({ ok: true });

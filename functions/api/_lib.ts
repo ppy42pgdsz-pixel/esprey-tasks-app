@@ -63,6 +63,28 @@ export async function meFromCtx(db: D1Database, ctx: { data: Record<string, unkn
   return resolvePrimary(db, rawEmail(ctx));
 }
 
+/**
+ * Append an entry to a task's activity timeline. Best-effort: logging must never
+ * break the action it's recording, so failures are swallowed.
+ */
+export async function logEvent(
+  db: D1Database,
+  taskId: string,
+  actorEmail: string | null,
+  type: string,
+  detail = '',
+): Promise<void> {
+  try {
+    const id = crypto.randomUUID().replace(/-/g, '').slice(0, 21);
+    await db
+      .prepare('INSERT INTO task_events (id, task_id, actor_email, type, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(id, taskId, actorEmail || null, type, detail.slice(0, 500), Date.now())
+      .run();
+  } catch (e) {
+    console.error('logEvent failed', type, e);
+  }
+}
+
 /** Is `me` (a canonical email) an admin? */
 export async function isAdminEmail(db: D1Database, me: string, adminEmail?: string): Promise<boolean> {
   if (!me) return false;
