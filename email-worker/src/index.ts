@@ -62,8 +62,10 @@ const COMPLETED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 1 month
  */
 async function purgeOldCompleted(env: Env): Promise<number> {
   const cutoff = Date.now() - COMPLETED_RETENTION_MS;
+  // Never purge a task that is still an active recurrence carrier — deleting it
+  // would silently kill the series before it spawns its next occurrence.
   const { results: doomed } = await env.DB
-    .prepare('SELECT id FROM tasks WHERE completed_at IS NOT NULL AND completed_at < ?')
+    .prepare("SELECT id FROM tasks WHERE completed_at IS NOT NULL AND completed_at < ? AND (recur_unit IS NULL OR recur_active = 0)")
     .bind(cutoff)
     .all<{ id: string }>();
   if (!doomed.length) return 0;
@@ -192,6 +194,121 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/**
+ * Advance a UTC-midnight date by N units. Uses Date.UTC so month overflow
+ * normalises (e.g. 31 Jan + 1 month → early Mar) and timezones never shift the
+ * calendar day.
+ */
+function addInterval(ms: number, unit: string, n: number): number {
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  const mo = d.getUTCMonth();
+  const da = d.getUTCDate();
+  if (unit === 'week') return Date.UTC(y, mo, da + 7 * n);
+  if (unit === 'month') return Date.UTC(y, mo + n, da);
+  return Date.UTC(y, mo, da + n); // 'day' (and fallback)
+}
+
+interface RecurTaskRow {
+  id: string;
+  title: string;
+  description: string | null;
+  priority: string | null;
+  owner_email: string | null;
+  company_id: string | null;
+  company_name: string | null;
+  recur_interval: number | null;
+  recur_unit: string | null;
+  recur_next_at: number | null;
+}
+interface SubtaskRow {
+  id: string;
+  text: string;
+  position: number | null;
+  instructions: string | null;
+  due_date: number | null;
+}
+
+/**
+ * Schedule-based recurring tasks (baton model). For every task whose
+ * recur_next_at has arrived, spawn a fresh full copy (subtasks + assignees +
+ * contacts, reset to "to do" with member notes cleared) dated at the occurrence,
+ * carry the recurrence onto the new copy advanced by one interval, and clear the
+ * recurrence on the old task so it behaves as a normal one-off from then on.
+ */
+async function generateRecurring(env: Env): Promise<number> {
+  const now = Date.now();
+  const { results: due } = await env.DB
+    .prepare("SELECT * FROM tasks WHERE recur_unit IS NOT NULL AND recur_active = 1 AND recur_next_at IS NOT NULL AND recur_next_at <= ?")
+    .bind(now)
+    .all<RecurTaskRow>();
+  if (!due.length) return 0;
+
+  let made = 0;
+  for (const t of due) {
+    const unit = t.recur_unit as string;
+    const n = t.recur_interval && t.recur_interval > 0 ? t.recur_interval : 1;
+    const occ = t.recur_next_at as number; // this copy's occurrence date
+    const next = addInterval(occ, unit, n); // when the NEXT copy is due
+    const newId = nanoid();
+
+    await env.DB.prepare(
+      `INSERT INTO tasks (
+        id, title, description, status, priority, source, owner_email,
+        company_id, company_name, created_at, updated_at, due_date,
+        recur_interval, recur_unit, recur_next_at, recur_active
+      ) VALUES (?, ?, ?, 'todo', ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+    )
+      .bind(
+        newId, t.title, t.description ?? '', t.priority ?? 'normal', t.owner_email,
+        t.company_id ?? null, t.company_name ?? null, now, now, occ,
+        n, unit, next,
+      )
+      .run();
+
+    // Clone subtasks (fresh state) + their assignees and contacts.
+    const { results: subs } = await env.DB
+      .prepare('SELECT id, text, position, instructions, due_date FROM subtasks WHERE task_id = ? ORDER BY position ASC, created_at ASC')
+      .bind(t.id)
+      .all<SubtaskRow>();
+    for (const s of subs) {
+      const nsid = nanoid();
+      const sdue = s.due_date ? addInterval(s.due_date, unit, n) : null;
+      await env.DB.prepare(
+        `INSERT INTO subtasks (id, task_id, text, done, status, position, created_at, notes, instructions, completion_note, accepted_at, due_date)
+         VALUES (?, ?, ?, 0, 'todo', ?, ?, '', ?, '', NULL, ?)`,
+      ).bind(nsid, newId, s.text, s.position ?? 0, now, s.instructions ?? '', sdue).run();
+
+      const { results: asg } = await env.DB
+        .prepare('SELECT user_email FROM subtask_assignees WHERE subtask_id = ?')
+        .bind(s.id)
+        .all<{ user_email: string }>();
+      if (asg.length) {
+        await env.DB.batch(asg.map((a) =>
+          env.DB.prepare('INSERT OR IGNORE INTO subtask_assignees (subtask_id, user_email) VALUES (?, ?)').bind(nsid, a.user_email),
+        ));
+      }
+      const { results: cons } = await env.DB
+        .prepare('SELECT contact_id FROM subtask_contacts WHERE subtask_id = ?')
+        .bind(s.id)
+        .all<{ contact_id: string }>();
+      if (cons.length) {
+        await env.DB.batch(cons.map((c) =>
+          env.DB.prepare('INSERT OR IGNORE INTO subtask_contacts (subtask_id, contact_id) VALUES (?, ?)').bind(nsid, c.contact_id),
+        ));
+      }
+    }
+
+    // Pass the baton: the old task stops repeating (the new copy carries it on).
+    await env.DB
+      .prepare('UPDATE tasks SET recur_unit = NULL, recur_interval = NULL, recur_next_at = NULL, updated_at = ? WHERE id = ?')
+      .bind(now, t.id)
+      .run();
+    made++;
+  }
+  return made;
+}
+
 export default {
   // Cron handlers (see wrangler.toml [triggers]).
   async scheduled(event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
@@ -199,6 +316,10 @@ export default {
       const n = await sendDailyDigests(env);
       console.log(`Daily digest: sent ${n} email(s)`);
     } else {
+      // Generate due recurrences first, then prune (a freshly-spawned copy is
+      // never old enough to be purged, so order is for clarity only).
+      const g = await generateRecurring(env);
+      console.log(`Recurring tasks: generated ${g} new occurrence(s)`);
       const n = await purgeOldCompleted(env);
       console.log(`Scheduled cleanup: removed ${n} completed task(s) older than 1 month`);
     }

@@ -32,7 +32,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   if (!(await isTaskOwner(ctx.env.DB, id, me))) return json({ error: 'Only the owner can edit this task' }, 403);
   const body = await ctx.request.json<Record<string, unknown>>();
 
-  const allowed = ['title', 'description', 'status', 'priority', 'due_date', 'draft_reply', 'company_id', 'company_name', 'contact_id', 'contact_name'];
+  const allowed = ['title', 'description', 'status', 'priority', 'due_date', 'draft_reply', 'company_id', 'company_name', 'contact_id', 'contact_name', 'recur_interval', 'recur_unit', 'recur_next_at', 'recur_active'];
   const updates: string[] = [];
   const values: unknown[] = [];
 

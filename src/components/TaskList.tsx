@@ -241,6 +241,9 @@ export default function TaskList({
                     )}
                     <span className="cell-title">{task.title}</span>
                     {task.source === 'email' && <span className="tag">email</span>}
+                    {task.recur_unit && task.recur_active !== 0 && (
+                      <span className="tag repeat-tag" title={`Repeats every ${task.recur_interval ?? 1} ${task.recur_unit}(s)`}>🔁 repeats</span>
+                    )}
                     {task.owner_email && task.owner_email.toLowerCase() !== meEmail && (
                       <span className="tag owner-tag">from {task.owner_name || task.owner_email}</span>
                     )}

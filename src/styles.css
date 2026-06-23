@@ -690,6 +690,18 @@ body {
 .subtask-line .assignee-chip { flex-shrink: 0; }
 .subtask-line .subtask-del { margin-left: 0; }
 
+/* ─── Recurrence ─── */
+.repeat-tag { background: #ecfdf5; color: #047857; }
+.repeat-row { align-items: center; }
+.repeat-label { font-size: 13px; color: #57534e; min-width: 52px; }
+.repeat-every { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #57534e; }
+.repeat-n { width: 56px; text-align: center; }
+.repeat-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.repeat-controls .select-input { flex: 0 1 160px; }
+.repeat-next { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #57534e; margin-top: 8px; }
+.repeat-next input { font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid #d6d3d1; border-radius: 6px; }
+.repeat-hint { font-size: 12px; margin: 6px 0 0; }
+
 /* ─── Responsive ─── */
 @media (max-width: 700px) {
   .main { padding: 16px; }

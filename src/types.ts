@@ -1,6 +1,7 @@
 export type TaskStatus = 'todo' | 'in_progress' | 'done';
 export type TaskPriority = 'low' | 'normal' | 'high';
 export type TaskSource = 'manual' | 'email';
+export type RecurUnit = 'day' | 'week' | 'month';
 
 export interface Task {
   id: string;
@@ -21,6 +22,11 @@ export interface Task {
   created_at: number;
   updated_at: number;
   due_date: number | null;
+  // Recurrence (schedule-based). recur_unit null = does not repeat.
+  recur_interval?: number | null;
+  recur_unit?: RecurUnit | null;
+  recur_next_at?: number | null; // epoch ms (UTC midnight): next copy generated
+  recur_active?: number | null;  // 1 = repeating, 0 = paused
   // Ownership & sharing.
   owner_email?: string | null;
   owner_name?: string | null;

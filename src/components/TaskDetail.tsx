@@ -41,6 +41,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
   const [assignOpenFor, setAssignOpenFor] = useState<string | null>(null);
   const [subAttachments, setSubAttachments] = useState<Record<string, TaskAttachment[]>>({});
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [recurInterval, setRecurInterval] = useState(task.recur_interval ?? 1);
 
   const doneCount = subtasks.filter((s) => s.status === 'done').length;
   const meEmail = (me?.email ?? '').toLowerCase();
@@ -260,6 +261,29 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
     onUpdate(updated);
   };
 
+  // ─── Recurrence ───
+  const todayUtcMidnight = () => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+  const addInterval = (ms: number, unit: 'day' | 'week' | 'month', n: number) => {
+    const d = new Date(ms); const y = d.getUTCFullYear(), mo = d.getUTCMonth(), da = d.getUTCDate();
+    if (unit === 'week') return Date.UTC(y, mo, da + 7 * n);
+    if (unit === 'month') return Date.UTC(y, mo + n, da);
+    return Date.UTC(y, mo, da + n);
+  };
+  const saveRecurrence = async (data: Parameters<typeof api.updateTask>[1]) => {
+    const updated = await api.updateTask(task.id, data);
+    onUpdate(updated);
+  };
+  const changeRecurUnit = (unit: '' | 'day' | 'week' | 'month') => {
+    if (!unit) { void saveRecurrence({ recur_unit: null, recur_interval: null, recur_next_at: null }); return; }
+    const n = Math.max(1, recurInterval);
+    const next = task.recur_next_at ?? addInterval(todayUtcMidnight(), unit, n);
+    void saveRecurrence({ recur_unit: unit, recur_interval: n, recur_next_at: next, recur_active: 1 });
+  };
+  const changeRecurInterval = (n: number) => {
+    const v = Math.max(1, n); setRecurInterval(v);
+    if (task.recur_unit) void saveRecurrence({ recur_interval: v });
+  };
+
   return (
     <aside className="task-detail">
       <div className="detail-header">
@@ -313,6 +337,51 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
           </select>
         )}
       </div>
+
+      {/* Repeat (owner only) */}
+      {isOwner && (
+        <div className="detail-section">
+          <div className="section-label">Repeat</div>
+          <div className="repeat-controls">
+            <select
+              className="select-input"
+              value={task.recur_unit ?? ''}
+              onChange={(e) => changeRecurUnit(e.target.value as '' | 'day' | 'week' | 'month')}
+            >
+              <option value="">Doesn't repeat</option>
+              <option value="day">Daily</option>
+              <option value="week">Weekly</option>
+              <option value="month">Monthly</option>
+            </select>
+            {task.recur_unit && (
+              <label className="repeat-every">
+                every
+                <input
+                  type="number"
+                  min={1}
+                  className="text-input repeat-n"
+                  value={recurInterval}
+                  onChange={(e) => changeRecurInterval(Number(e.target.value) || 1)}
+                />
+                {task.recur_unit === 'day' ? 'day(s)' : task.recur_unit === 'week' ? 'week(s)' : 'month(s)'}
+              </label>
+            )}
+          </div>
+          {task.recur_unit && (
+            <label className="repeat-next">
+              Next occurrence
+              <input
+                type="date"
+                value={toDateInput(task.recur_next_at)}
+                onChange={(e) => { const ms = fromDateInput(e.target.value); if (ms) void saveRecurrence({ recur_next_at: ms }); }}
+              />
+            </label>
+          )}
+          {task.recur_unit && (
+            <p className="repeat-hint muted">A fresh copy is created on each occurrence and this repeat moves to it. Deleting this task stops the series.</p>
+          )}
+        </div>
+      )}
 
       {task.source === 'email' && task.from_email && (
         <div className="detail-section">

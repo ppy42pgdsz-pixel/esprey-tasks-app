@@ -21,6 +21,20 @@ function nanoid() {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 21);
 }
 
+/** Today at UTC midnight (recurrence dates are calendar days, stored in UTC). */
+function todayUtcMidnight(): number {
+  const d = new Date();
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+/** Advance a UTC-midnight date by N units (mirrors the worker helper). */
+function addInterval(ms: number, unit: string, n: number): number {
+  const d = new Date(ms);
+  const y = d.getUTCFullYear(), mo = d.getUTCMonth(), da = d.getUTCDate();
+  if (unit === 'week') return Date.UTC(y, mo, da + 7 * n);
+  if (unit === 'month') return Date.UTC(y, mo + n, da);
+  return Date.UTC(y, mo, da + n);
+}
+
 export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const me = await resolvePrimary(ctx.env.DB, rawEmail(ctx));
   const url = new URL(ctx.request.url);
@@ -84,6 +98,9 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     contact_name?: string;
     visibility?: string;
     share_emails?: string[];
+    recur_interval?: number;
+    recur_unit?: string;
+    recur_next_at?: number;
   }>();
 
   if (!body.title?.trim()) {
@@ -95,9 +112,17 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const me = await resolvePrimary(ctx.env.DB, rawEmail(ctx));
   const visibility = body.visibility === 'shared' ? 'shared' : 'private';
 
+  // Recurrence (optional). If a valid unit is given, default the next occurrence
+  // to one interval from today unless the caller specifies an explicit date.
+  const recurUnit = ['day', 'week', 'month'].includes(body.recur_unit ?? '') ? body.recur_unit! : null;
+  const recurInterval = recurUnit ? Math.max(1, Math.floor(body.recur_interval ?? 1)) : null;
+  const recurNextAt = recurUnit
+    ? (body.recur_next_at ?? addInterval(todayUtcMidnight(), recurUnit, recurInterval!))
+    : null;
+
   await ctx.env.DB.prepare(
-    `INSERT INTO tasks (id, title, description, status, priority, source, owner_email, visibility, created_at, updated_at, due_date, company_id, company_name, contact_id, contact_name)
-     VALUES (?, ?, ?, 'todo', ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO tasks (id, title, description, status, priority, source, owner_email, visibility, created_at, updated_at, due_date, company_id, company_name, contact_id, contact_name, recur_interval, recur_unit, recur_next_at)
+     VALUES (?, ?, ?, 'todo', ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
@@ -113,6 +138,9 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       body.company_name ?? null,
       body.contact_id ?? null,
       body.contact_name ?? null,
+      recurInterval,
+      recurUnit,
+      recurNextAt,
     )
     .run();
 

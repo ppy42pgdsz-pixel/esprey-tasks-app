@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TaskPriority, Company, Contact, TaskAttachment, Subtask, User, UserRole } from './types';
+import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, Subtask, User, UserRole } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -35,10 +35,13 @@ export const api = {
     contact_name?: string;
     visibility?: 'private' | 'shared';
     share_emails?: string[];
+    recur_interval?: number;
+    recur_unit?: RecurUnit;
+    recur_next_at?: number;
   }) =>
     request<Task>('/api/tasks', { method: 'POST', body: JSON.stringify(data) }),
 
-  updateTask: (id: string, data: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'due_date' | 'draft_reply' | 'company_id' | 'company_name' | 'contact_id' | 'contact_name'>>) =>
+  updateTask: (id: string, data: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'due_date' | 'draft_reply' | 'company_id' | 'company_name' | 'contact_id' | 'contact_name' | 'recur_interval' | 'recur_unit' | 'recur_next_at' | 'recur_active'>>) =>
     request<Task>(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   deleteTask: (id: string) =>

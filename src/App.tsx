@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from './api';
-import type { Task, TaskStatus, TaskPriority, Company, User, UserRole } from './types';
+import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, User, UserRole } from './types';
 import TaskList from './components/TaskList';
 import TaskDetail from './components/TaskDetail';
 import AddTaskForm from './components/AddTaskForm';
@@ -126,6 +126,8 @@ export default function App() {
     priority?: TaskPriority;
     company_id?: string;
     company_name?: string;
+    recur_interval?: number;
+    recur_unit?: RecurUnit;
   }) => {
     const task = await api.createTask(data);
     setTasks((prev) => [task, ...prev]);

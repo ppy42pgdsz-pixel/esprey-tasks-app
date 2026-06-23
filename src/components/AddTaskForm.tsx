@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Company } from '../types';
+import type { Company, RecurUnit } from '../types';
 
 interface Props {
   companies: Company[];
@@ -8,6 +8,8 @@ interface Props {
     description?: string;
     company_id?: string;
     company_name?: string;
+    recur_interval?: number;
+    recur_unit?: RecurUnit;
   }) => Promise<void>;
   onCancel: () => void;
 }
@@ -17,6 +19,8 @@ export default function AddTaskForm({ companies, onSubmit, onCancel }: Props) {
   const [description, setDescription] = useState('');
   const personalId = companies.find((c) => c.name.trim().toLowerCase() === 'personal')?.id ?? '';
   const [companyId, setCompanyId] = useState(personalId); // default to Personal
+  const [recurUnit, setRecurUnit] = useState<'' | RecurUnit>('');
+  const [recurInterval, setRecurInterval] = useState(1);
   const [saving, setSaving] = useState(false);
 
   const selectedCompany = companies.find((c) => c.id === companyId);
@@ -31,6 +35,8 @@ export default function AddTaskForm({ companies, onSubmit, onCancel }: Props) {
         description: description.trim() || undefined,
         company_id: companyId || undefined,
         company_name: selectedCompany?.name,
+        recur_unit: recurUnit || undefined,
+        recur_interval: recurUnit ? Math.max(1, recurInterval) : undefined,
       });
     } finally {
       setSaving(false);
@@ -72,6 +78,33 @@ export default function AddTaskForm({ companies, onSubmit, onCancel }: Props) {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="form-row repeat-row">
+          <span className="repeat-label">Repeat</span>
+          <select
+            className="select-input"
+            value={recurUnit}
+            onChange={(e) => setRecurUnit(e.target.value as '' | RecurUnit)}
+          >
+            <option value="">Doesn't repeat</option>
+            <option value="day">Daily</option>
+            <option value="week">Weekly</option>
+            <option value="month">Monthly</option>
+          </select>
+          {recurUnit && (
+            <label className="repeat-every">
+              every
+              <input
+                type="number"
+                min={1}
+                className="text-input repeat-n"
+                value={recurInterval}
+                onChange={(e) => setRecurInterval(Math.max(1, Number(e.target.value) || 1))}
+              />
+              {recurUnit === 'day' ? 'day(s)' : recurUnit === 'week' ? 'week(s)' : 'month(s)'}
+            </label>
+          )}
         </div>
 
         <div className="form-actions">
