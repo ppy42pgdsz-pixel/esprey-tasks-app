@@ -668,27 +668,16 @@ body {
 }
 .expand-chevron:hover { color: #1c1917; }
 
-.subtask-row td { padding: 0; background: #f0efed; }
-.subtask-line {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px 8px 64px;
-  position: relative;
-  border-bottom: 1px solid #e2e0dd;
-  font-size: 14px;
-  color: #292524;
-}
-/* tree lines: continuous vertical + elbow stub into each child */
-.subtask-line::before { content: ''; position: absolute; left: 38px; top: 0; bottom: 0; width: 1px; background: #cfccc8; }
-.subtask-line::after { content: ''; position: absolute; left: 38px; top: 50%; width: 14px; height: 1px; background: #cfccc8; }
-.subtask-row-text { flex: 1; min-width: 0; }
+/* Expanded task (subtask) rows: same column grid as the parent project row,
+   on a tinted background and with the title cell indented under Title. */
+.subtask-row td { background: #f5f4f2; border-bottom: 1px solid #e7e5e4; font-size: 14px; color: #292524; }
+.subtask-row:hover td { background: #f0efed; }
+.subtask-title-cell { display: inline-flex; align-items: center; gap: 8px; padding-left: 18px; position: relative; min-width: 0; }
+.subtask-title-cell::before { content: ''; position: absolute; left: 2px; top: 50%; width: 10px; height: 1px; background: #cfccc8; }
+.subtask-row-text { min-width: 0; }
 .subtask-row-text.clickable { cursor: pointer; }
 .subtask-row-text.clickable:hover { text-decoration: underline; }
-.subtask-line.done .subtask-row-text { text-decoration: line-through; color: #a8a29e; }
-.subtask-line .status-pill { flex-shrink: 0; }
-.subtask-line .assignee-chip { flex-shrink: 0; }
-.subtask-line .subtask-del { margin-left: 0; }
+.subtask-row.done .subtask-row-text { text-decoration: line-through; color: #a8a29e; }
 
 /* ─── Recurrence ─── */
 .repeat-tag { background: #ecfdf5; color: #047857; }

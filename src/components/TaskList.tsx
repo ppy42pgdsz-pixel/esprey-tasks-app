@@ -313,7 +313,7 @@ export default function TaskList({
 
               {isExpanded && !subsByTask[task.id] && (
                 <tr className="subtask-row">
-                  <td colSpan={COL_COUNT}><div className="subtask-line"><span className="cell-muted">Loading…</span></div></td>
+                  <td colSpan={COL_COUNT}><span className="cell-muted" style={{ paddingLeft: 18 }}>Loading…</span></td>
                 </tr>
               )}
 
@@ -347,20 +347,23 @@ export default function TaskList({
                 </tr>
               )}
 
-              {isExpanded && (subsByTask[task.id] ?? []).filter((s) => showCompleted || !s.accepted_at).map((s) => (
-                <tr key={s.id} className="subtask-row">
-                  <td colSpan={COL_COUNT}>
-                    <div className={`subtask-line ${s.status === 'done' ? 'done' : ''}`}>
+              {isExpanded && (subsByTask[task.id] ?? []).filter((s) => showCompleted || !s.accepted_at).map((s) => {
+                const subOverdue = s.due_date != null && s.due_date < todayUtcStart();
+                const subAssignees = s.assignee_emails ?? [];
+                return (
+                  <tr key={s.id} className={`subtask-row ${s.status === 'done' ? 'done' : ''}`}>
+                    <td className="col-check" onClick={(e) => e.stopPropagation()}>
                       {ownsProject(task) && (
                         <input
                           type="checkbox"
                           className="select-checkbox sub-select"
                           checked={selectedSubs.has(s.id)}
                           onChange={() => toggleSubSelect(s.id)}
-                          onClick={(e) => e.stopPropagation()}
                           aria-label="Select task"
                         />
                       )}
+                    </td>
+                    <td>
                       <span
                         className={`status-pill ${s.status}`}
                         title={`Mark as ${STATUS_LABEL[STATUS_NEXT[s.status]]}`}
@@ -368,22 +371,45 @@ export default function TaskList({
                       >
                         {STATUS_LABEL[s.status]}
                       </span>
-                      <span
-                        className="subtask-row-text clickable"
-                        onClick={() => onSelectSubtask(task, s.id)}
-                        title="Open this task"
-                      >
-                        {s.text}
+                    </td>
+                    <td>
+                      <span className="subtask-title-cell">
+                        <span className="subtask-tree" aria-hidden="true" />
+                        <span
+                          className="subtask-row-text clickable"
+                          onClick={() => onSelectSubtask(task, s.id)}
+                          title="Open this task"
+                        >
+                          {s.text}
+                        </span>
                       </span>
-                      {(s.assignee_emails ?? []).map((em) => (
-                        <span key={em} className="assignee-chip">{userName(em)}</span>
-                      ))}
-                      {s.due_date && <span className="due-chip">Due {formatDueDate(s.due_date)}</span>}
-                      <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete task" aria-label="Delete task">✕</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      {task.company_name ? (() => {
+                        const [bg, fg] = companyColor(task.company_id || task.company_name);
+                        return <span className="tag" style={{ background: bg, color: fg }}>{task.company_name}</span>;
+                      })() : <span className="cell-muted">—</span>}
+                    </td>
+                    <td>
+                      {subAssignees.length > 0 ? (
+                        <span className="assigned-cell">
+                          {subAssignees.map((em) => <span key={em} className="assignee-chip">{userName(em)}</span>)}
+                        </span>
+                      ) : <span className="cell-muted">—</span>}
+                    </td>
+                    <td>
+                      {s.due_date ? (
+                        <span className={subOverdue ? 'due-overdue' : 'cell-muted'}>{formatDueDate(s.due_date)}</span>
+                      ) : <span className="cell-muted">—</span>}
+                    </td>
+                    <td className="col-actions">
+                      {ownsProject(task) && (
+                        <button className="subtask-del" onClick={() => delSub(task.id, s.id)} title="Delete task" aria-label="Delete task">✕</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </Fragment>
           );
         })}
