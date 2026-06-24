@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Task, TaskStatus, Company, TaskAttachment, TaskEvent, Subtask, User } from '../types';
 import { api } from '../api';
+import { downloadFile } from '../download';
 import SubtaskComments from './SubtaskComments';
 
 const EVENT_ICON: Record<string, string> = {
@@ -466,7 +467,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
           {attachments.map((a) => (
             <div key={a.id} className="subtask-file">
               <div className="subtask-file-row">
-                <a href={`/api/attachments/${a.id}`} target="_blank" rel="noreferrer" className="file-name">📎 {a.filename}</a>
+                <button type="button" className="file-name file-link" onClick={() => downloadFile(`/api/attachments/${a.id}?download=1`)}>📎 {a.filename}</button>
                 {isOwner && (
                   <button className="file-del" onClick={() => removeTaskAttachment(a.id, a.filename)} title="Remove file">Remove</button>
                 )}
@@ -708,7 +709,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
                   {(subAttachments[s.id] ?? []).map((a) => (
                     <div key={a.id} className="subtask-file">
                       <div className="subtask-file-row">
-                        <a href={`/api/attachments/${a.id}`} target="_blank" rel="noreferrer" className="file-name">📎 {a.filename}</a>
+                        <button type="button" className="file-name file-link" onClick={() => downloadFile(`/api/attachments/${a.id}?download=1`)}>📎 {a.filename}</button>
                         {canEditSub(s) && (
                           <button className="file-del" onClick={() => removeAttachment(s, a.id, a.filename)} title="Remove file">Remove</button>
                         )}

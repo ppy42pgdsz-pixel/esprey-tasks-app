@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { downloadFile } from "../download";
 
 const PDFJS_VERSION = "3.11.174";
 const PDFJS_SRC = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.min.js`;
@@ -40,7 +41,6 @@ export default function PdfView() {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const docRef = useRef<PdfDocument | null>(null);
-  const blobRef = useRef<Blob | null>(null);
 
   const [pageNum, setPageNum] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -105,58 +105,9 @@ export default function PdfView() {
   function prev() { setPageNum((n) => Math.max(1, n - 1)); }
   function next() { setPageNum((n) => Math.min(totalPages || 1, n + 1)); }
 
-  // Pre-fetch the file bytes so Save can hand them off within the click gesture
-  // (Safari needs the share call to happen during the user gesture).
-  useEffect(() => {
-    blobRef.current = null;
-    let cancelled = false;
-    fetch(downloadUrl, { credentials: "include" })
-      .then((r) => (r.ok ? r.blob() : null))
-      .then((b) => { if (!cancelled && b) blobRef.current = b; })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [file]);
-
-  // Save the PDF WITHOUT navigating the window (which blanks a standalone/docked
-  // web app that has no browser chrome to go back from). Prefer the OS share
-  // sheet ("Save to Files"); fall back to a normal download link in browsers.
-  async function save() {
-    try {
-      let blob = blobRef.current;
-      if (!blob) {
-        const res = await fetch(downloadUrl, { credentials: "include" });
-        if (!res.ok) throw new Error(`Download failed (${res.status})`);
-        blob = await res.blob();
-        blobRef.current = blob;
-      }
-
-      // iPhone/iPad ignore the download attribute, so use the OS share sheet there.
-      const touchApple = /iP(ad|hone|od)/.test(navigator.userAgent)
-        || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
-      const nav = navigator as any;
-      if (touchApple && nav.canShare) {
-        const pdfFile = new File([blob], file || "report.pdf", { type: "application/pdf" });
-        if (nav.canShare({ files: [pdfFile] })) {
-          try { await nav.share({ files: [pdfFile], title: file }); }
-          catch (e) { if ((e as Error).name !== "AbortError") setErr((e as Error).message); }
-          return;
-        }
-      }
-
-      // Desktop (incl. a docked Mac web app): a plain download — straight to the
-      // Downloads folder, or a "where to save?" dialog if Safari is set to ask.
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file || "report.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1500);
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  }
+  // Download via a hidden iframe (the /download endpoint sends an attachment
+  // disposition) so the docked app never opens a window or goes blank.
+  function save() { downloadFile(downloadUrl); }
 
   return (
     <div className="pdf-view">

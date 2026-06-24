@@ -35,7 +35,10 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const headers = new Headers();
   headers.set('Content-Type', row.mime_type || 'application/octet-stream');
   const safeName = (row.filename || 'attachment').replace(/"/g, '');
-  headers.set('Content-Disposition', `inline; filename="${safeName}"`);
+  // ?download=1 forces a download (used by the in-app download links); otherwise
+  // the file is served inline.
+  const disposition = new URL(ctx.request.url).searchParams.get('download') ? 'attachment' : 'inline';
+  headers.set('Content-Disposition', `${disposition}; filename="${safeName}"`);
   headers.set('Cache-Control', 'private, max-age=3600');
   return new Response(obj.body, { headers });
 };
