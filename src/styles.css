@@ -302,7 +302,7 @@ body {
 @keyframes overlay-fade { from { opacity: 0; } to { opacity: 1; } }
 .detail-slideover {
   width: 100%;
-  height: 67vh;                 /* ~two-thirds tall; background stays visible above */
+  height: 80vh;                 /* 80% tall; background stays visible above */
   background: #ffffff;
   border-top: 1px solid #e7e5e4;
   border-radius: 16px 16px 0 0;
