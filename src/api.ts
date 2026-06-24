@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, TaskEvent, CompletedSubtask, ReportProject, Subtask, User, UserRole } from './types';
+import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, TaskEvent, SubtaskComment, CompletedSubtask, ReportProject, Subtask, User, UserRole } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -106,9 +106,14 @@ export const api = {
     request<{ ok: boolean }>(`/api/contacts/${id}`, { method: 'DELETE' }),
 
   getShare: (taskId: string) =>
-    request<{ owner_email: string | null; visibility: 'private' | 'shared'; user_emails: string[] }>(`/api/tasks/${taskId}/share`),
-  setShare: (taskId: string, data: { visibility: 'private' | 'shared'; user_emails: string[] }) =>
-    request<{ ok: boolean; visibility: 'private' | 'shared'; user_emails: string[] }>(`/api/tasks/${taskId}/share`, { method: 'PUT', body: JSON.stringify(data) }),
+    request<{ owner_email: string | null; members_see_all: boolean; user_emails: string[] }>(`/api/tasks/${taskId}/share`),
+  setShare: (taskId: string, data: { members_see_all: boolean; user_emails: string[] }) =>
+    request<{ ok: boolean; members_see_all: boolean; user_emails: string[] }>(`/api/tasks/${taskId}/share`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  listComments: (subtaskId: string) =>
+    request<SubtaskComment[]>(`/api/subtasks/${subtaskId}/comments`),
+  addComment: (subtaskId: string, body: string) =>
+    request<SubtaskComment>(`/api/subtasks/${subtaskId}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
 
   listSubtasks: (taskId: string) =>
     request<Subtask[]>(`/api/tasks/${taskId}/subtasks`),

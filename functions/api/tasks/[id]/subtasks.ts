@@ -3,7 +3,7 @@
  * POST /api/tasks/:id/subtasks — add a subtask { text }
  */
 
-import { meFromCtx, canAccessTask, isTaskOwner, logEvent } from '../../_lib';
+import { meFromCtx, canAccessTask, isTaskOwner, canSeeAllSubtasks, logEvent } from '../../_lib';
 
 interface Env { DB: D1Database }
 
@@ -21,9 +21,10 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
   const me = await meFromCtx(ctx.env.DB, ctx);
   if (!(await canAccessTask(ctx.env.DB, id, me))) return json({ error: 'Forbidden' }, 403);
-  // Owners see every subtask; a member assigned into the task sees only theirs.
-  const owner = await isTaskOwner(ctx.env.DB, id, me);
-  const subsStmt = owner
+  // The owner, a watcher, or (when members_see_all is on) any assignee sees every
+  // task; an assignee-only member sees just the tasks assigned to them.
+  const seeAll = await canSeeAllSubtasks(ctx.env.DB, id, me);
+  const subsStmt = seeAll
     ? ctx.env.DB.prepare('SELECT * FROM subtasks WHERE task_id = ? ORDER BY position ASC, created_at ASC').bind(id)
     : ctx.env.DB.prepare(
         'SELECT * FROM subtasks WHERE task_id = ? AND id IN (SELECT subtask_id FROM subtask_assignees WHERE user_email = ?) ORDER BY position ASC, created_at ASC',

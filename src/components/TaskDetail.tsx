@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Task, TaskStatus, Company, TaskAttachment, TaskEvent, Subtask, User } from '../types';
 import { api } from '../api';
+import SubtaskComments from './SubtaskComments';
 
 const EVENT_ICON: Record<string, string> = {
   created: '✨', completed: '✅', reopened: '↩️', subtask_added: '➕',
@@ -52,6 +53,8 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
   const [recurInterval, setRecurInterval] = useState(task.recur_interval ?? 1);
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [showActivity, setShowActivity] = useState(false);
+  const [membersSeeAll, setMembersSeeAll] = useState(false);
+  const [watchers, setWatchers] = useState<string[]>([]);
 
   const doneCount = subtasks.filter((s) => s.status === 'done').length;
   const meEmail = (me?.email ?? '').toLowerCase();
@@ -115,7 +118,10 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
 
   useEffect(() => {
     api.listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
-    if (isOwner) api.listEvents(task.id).then(setEvents).catch(() => setEvents([]));
+    if (isOwner) {
+      api.listEvents(task.id).then(setEvents).catch(() => setEvents([]));
+      api.getShare(task.id).then((s) => { setMembersSeeAll(s.members_see_all); setWatchers(s.user_emails); }).catch(() => {});
+    }
     api.listSubtasks(task.id)
       .then((s) => {
         setSubtasks(s);
@@ -276,6 +282,18 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
     onUpdate(updated);
   };
 
+  // ─── Project visibility (members-see-all + watchers) ───
+  const saveShare = async (msa: boolean, w: string[]) => {
+    try { await api.setShare(task.id, { members_see_all: msa, user_emails: w }); }
+    catch (e) { alert(e instanceof Error ? e.message : 'Could not save'); }
+  };
+  const toggleSeeAll = () => { const v = !membersSeeAll; setMembersSeeAll(v); void saveShare(v, watchers); };
+  const toggleWatcher = (email: string) => {
+    const next = watchers.includes(email) ? watchers.filter((e) => e !== email) : [...watchers, email];
+    setWatchers(next);
+    void saveShare(membersSeeAll, next);
+  };
+
   // ─── Recurrence ───
   const todayUtcMidnight = () => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
   const addInterval = (ms: number, unit: 'day' | 'week' | 'month', n: number) => {
@@ -387,6 +405,34 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
           {task.recur_unit && (
             <p className="repeat-hint muted">A fresh copy is created on each occurrence and this repeat moves to it. Deleting this project stops the series.</p>
           )}
+        </div>
+      )}
+
+      {/* Who can see this project (owner only) */}
+      {isOwner && (
+        <div className="detail-section">
+          <div className="section-label">Who can see this project</div>
+          <label className="seeall-toggle">
+            <input type="checkbox" checked={membersSeeAll} onChange={toggleSeeAll} />
+            <span>Everyone with a task here can see all tasks</span>
+          </label>
+          <div className="watchers">
+            <div className="watchers-label">Watchers <span className="muted">· can see &amp; comment on everything, even with no task</span></div>
+            {users.filter((u) => u.email.toLowerCase() !== meEmail).length === 0 ? (
+              <span className="assignee-none">No team members yet</span>
+            ) : (
+              users.filter((u) => u.email.toLowerCase() !== meEmail).map((u) => (
+                <label key={u.email} className="assign-check">
+                  <input
+                    type="checkbox"
+                    checked={watchers.includes(u.email.toLowerCase())}
+                    onChange={() => toggleWatcher(u.email.toLowerCase())}
+                  />
+                  {u.name}
+                </label>
+              ))
+            )}
+          </div>
         </div>
       )}
 
@@ -524,9 +570,9 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
               <li key={s.id} className={`subtask-item ${s.status === 'done' ? 'done' : ''}`}>
                 <div className="subtask-titlerow">
                   <span
-                    className={`status-pill ${s.status}`}
-                    title={`Mark as ${SUB_LABEL[SUB_NEXT[s.status]]}`}
-                    onClick={() => cycleSubtaskStatus(s)}
+                    className={`status-pill ${s.status}${canEditSub(s) ? '' : ' static'}`}
+                    title={canEditSub(s) ? `Mark as ${SUB_LABEL[SUB_NEXT[s.status]]}` : SUB_LABEL[s.status]}
+                    onClick={canEditSub(s) ? () => cycleSubtaskStatus(s) : undefined}
                   >
                     {SUB_LABEL[s.status]}
                   </span>
@@ -682,6 +728,8 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
                     </label>
                   )}
                 </div>
+
+                <SubtaskComments subtaskId={s.id} users={users} />
               </li>
             ))}
           </ul>

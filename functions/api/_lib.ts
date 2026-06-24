@@ -44,6 +44,35 @@ export async function canAccessTask(db: D1Database, taskId: string, me: string):
   return !!a;
 }
 
+/**
+ * True if `me` may see EVERY task in the project: the owner, a watcher
+ * (task_shares), or — when the project's members_see_all flag is on — anyone
+ * assigned a task in it.
+ */
+export async function canSeeAllSubtasks(db: D1Database, taskId: string, me: string): Promise<boolean> {
+  const t = await db.prepare('SELECT owner_email, members_see_all FROM tasks WHERE id = ?')
+    .bind(taskId).first<{ owner_email: string | null; members_see_all: number }>();
+  if (!t) return false;
+  if ((t.owner_email ?? '').toLowerCase() === me) return true;
+  const watcher = await db.prepare('SELECT 1 FROM task_shares WHERE task_id = ? AND user_email = ?').bind(taskId, me).first();
+  if (watcher) return true;
+  if (t.members_see_all) {
+    const assigned = await db.prepare(
+      'SELECT 1 FROM subtask_assignees sa JOIN subtasks st ON st.id = sa.subtask_id WHERE st.task_id = ? AND sa.user_email = ? LIMIT 1',
+    ).bind(taskId, me).first();
+    if (assigned) return true;
+  }
+  return false;
+}
+
+/** True if `me` may view a specific subtask: can see all, or is assigned to it. */
+export async function canViewSubtask(db: D1Database, subtaskId: string, me: string): Promise<boolean> {
+  const sub = await db.prepare('SELECT task_id FROM subtasks WHERE id = ?').bind(subtaskId).first<{ task_id: string }>();
+  if (!sub) return false;
+  if (await canSeeAllSubtasks(db, sub.task_id, me)) return true;
+  return isSubtaskAssignee(db, subtaskId, me);
+}
+
 /** True if `me` is assigned to the given subtask. */
 export async function isSubtaskAssignee(db: D1Database, subtaskId: string, me: string): Promise<boolean> {
   const r = await db.prepare('SELECT 1 FROM subtask_assignees WHERE subtask_id = ? AND user_email = ?').bind(subtaskId, me).first();

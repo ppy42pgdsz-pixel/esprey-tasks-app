@@ -115,6 +115,9 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
 export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
   if (!(await ownsSubtask(ctx, id))) return json({ error: 'Only the owner can edit this task' }, 403);
-  await ctx.env.DB.prepare('DELETE FROM subtasks WHERE id = ?').bind(id).run();
+  await ctx.env.DB.batch([
+    ctx.env.DB.prepare('DELETE FROM subtask_comments WHERE subtask_id = ?').bind(id),
+    ctx.env.DB.prepare('DELETE FROM subtasks WHERE id = ?').bind(id),
+  ]);
   return json({ ok: true });
 };

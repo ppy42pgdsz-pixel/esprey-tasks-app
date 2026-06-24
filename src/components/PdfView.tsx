@@ -104,6 +104,26 @@ export default function PdfView() {
   function prev() { setPageNum((n) => Math.max(1, n - 1)); }
   function next() { setPageNum((n) => Math.min(totalPages || 1, n + 1)); }
 
+  // Download in place (fetch -> blob -> temp link) so the page never navigates
+  // away to the attachment URL and go blank. Keeps the viewer + Back button.
+  async function save() {
+    try {
+      const res = await fetch(downloadUrl, { credentials: "include" });
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file || "report.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+
   return (
     <div className="pdf-view">
       <header className="pdf-view-bar">
@@ -113,7 +133,7 @@ export default function PdfView() {
           onClick={() => (history.length > 1 ? navigate(-1) : navigate("/"))}
         >← Back</button>
         <span className="pdf-view-title">{file}</span>
-        <a href={downloadUrl} download={file} className="download-link">Save</a>
+        <button type="button" onClick={save} className="download-link">Save</button>
       </header>
 
       {err && <div className="err" style={{ margin: 12 }}>{err}</div>}

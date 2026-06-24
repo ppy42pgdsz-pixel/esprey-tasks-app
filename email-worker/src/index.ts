@@ -82,6 +82,7 @@ async function purgeOldCompleted(env: Env): Promise<number> {
     await env.DB.batch([
       env.DB.prepare('DELETE FROM subtask_assignees WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)').bind(id),
       env.DB.prepare('DELETE FROM subtask_contacts WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)').bind(id),
+      env.DB.prepare('DELETE FROM subtask_comments WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)').bind(id),
       env.DB.prepare('DELETE FROM subtasks WHERE task_id = ?').bind(id),
       env.DB.prepare('DELETE FROM task_shares WHERE task_id = ?').bind(id),
       env.DB.prepare('DELETE FROM task_attachments WHERE task_id = ?').bind(id),

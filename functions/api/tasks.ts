@@ -44,7 +44,12 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   // Tasks I own, that are shared with me, OR where I'm assigned a subtask.
   // Subtask counts are scoped to the viewer: owners see all subtasks, while
   // a member assigned into the task sees only the subtasks assigned to them.
-  const visibleSub = `(t.owner_email = ? OR EXISTS (SELECT 1 FROM subtask_assignees sa WHERE sa.subtask_id = s.id AND sa.user_email = ?))`;
+  // A viewer sees a subtask's count if they own the project, watch it, are an
+  // assignee in a members_see_all project, or are assigned this specific subtask.
+  const visibleSub = `(t.owner_email = ?
+    OR EXISTS (SELECT 1 FROM task_shares ts WHERE ts.task_id = t.id AND ts.user_email = ?)
+    OR (t.members_see_all = 1 AND EXISTS (SELECT 1 FROM subtask_assignees sam JOIN subtasks stm ON stm.id = sam.subtask_id WHERE stm.task_id = t.id AND sam.user_email = ?))
+    OR EXISTS (SELECT 1 FROM subtask_assignees sa WHERE sa.subtask_id = s.id AND sa.user_email = ?))`;
   const access = `(t.owner_email = ?
     OR EXISTS (SELECT 1 FROM task_shares ts WHERE ts.task_id = t.id AND ts.user_email = ?)
     OR EXISTS (SELECT 1 FROM subtask_assignees sa JOIN subtasks st ON st.id = sa.subtask_id WHERE st.task_id = t.id AND sa.user_email = ?))`;
@@ -61,11 +66,11 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   // Order of params must follow the order of `?` in the SQL string below:
   // the SELECT-clause subqueries come before the WHERE clause.
   const params: string[] = [
-    me, me,        // subtask_total
-    me, me,        // subtask_done
-    me, me, me,    // archived CASE (owner check, has-assigned, open-count)
-    me,            // assigned_to_me
-    me, me, me,    // WHERE access (owner, shared, assigned)
+    me, me, me, me,  // subtask_total (visibleSub: owner, watcher, member-see-all, assigned)
+    me, me, me, me,  // subtask_done  (visibleSub: owner, watcher, member-see-all, assigned)
+    me, me, me,      // archived CASE (owner check, has-assigned, open-count)
+    me,              // assigned_to_me
+    me, me, me,      // WHERE access (owner, shared, assigned)
   ];
   if (company_id) { conditions.push('t.company_id = ?'); params.push(company_id); }
   if (contact_id) { conditions.push('t.contact_id = ?'); params.push(contact_id); }

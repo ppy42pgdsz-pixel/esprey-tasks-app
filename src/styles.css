@@ -793,6 +793,21 @@ body {
 .completed-sub-task { color: #78716c; font-weight: 500; }
 .completed-sub-note { font-size: 12px; color: #57534e; margin-top: 4px; white-space: pre-wrap; }
 
+/* ─── Project visibility ─── */
+.seeall-toggle { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #292524; cursor: pointer; }
+.seeall-toggle input { margin-top: 2px; }
+.watchers { margin-top: 12px; display: flex; flex-direction: column; gap: 5px; }
+.watchers-label { font-size: 12px; color: #57534e; margin-bottom: 2px; }
+
+/* ─── Task comments ─── */
+.subtask-comments { margin-top: 8px; border-top: 1px dashed #e7e5e4; padding-top: 6px; }
+.comments-toggle { font-size: 12px; }
+.comments-thread { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.comment { background: #faf9f8; border: 1px solid #ececea; border-radius: 8px; padding: 6px 9px; }
+.comment-head { font-size: 12px; color: #57534e; }
+.comment-body { font-size: 13px; color: #1c1917; white-space: pre-wrap; margin-top: 2px; }
+.comment-add { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+
 /* ─── Activity timeline ─── */
 .activity-section { border-top: 1px solid #f0eeec; padding-top: 14px; }
 .activity-toggle { font-size: 13px; }

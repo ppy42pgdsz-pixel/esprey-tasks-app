@@ -85,6 +85,7 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   if (!(await isTaskOwner(ctx.env.DB, id, me))) return json({ error: 'Only the owner can delete this task' }, 403);
   // Owner delete: remove the task and its dependents.
   await ctx.env.DB.batch([
+    ctx.env.DB.prepare('DELETE FROM subtask_comments WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)').bind(id),
     ctx.env.DB.prepare('DELETE FROM subtasks WHERE task_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM task_shares WHERE task_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM task_attachments WHERE task_id = ?').bind(id),

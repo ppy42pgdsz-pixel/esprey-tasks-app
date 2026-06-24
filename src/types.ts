@@ -116,6 +116,15 @@ export interface Contact {
   created_at: number;
 }
 
+export interface SubtaskComment {
+  id: string;
+  subtask_id: string;
+  author_email: string;
+  author_name?: string | null;
+  body: string;
+  created_at: number;
+}
+
 export interface TaskEvent {
   id: string;
   task_id: string;
