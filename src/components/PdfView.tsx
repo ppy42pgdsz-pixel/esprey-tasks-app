@@ -121,36 +121,41 @@ export default function PdfView() {
   // web app that has no browser chrome to go back from). Prefer the OS share
   // sheet ("Save to Files"); fall back to a normal download link in browsers.
   async function save() {
-    const blob = blobRef.current;
-    // Preferred (works inside a docked/standalone web app): hand the file to the
-    // OS share sheet — "Save to Files", AirDrop, etc. No navigation.
-    if (blob) {
-      const pdfFile = new File([blob], file || "report.pdf", { type: "application/pdf" });
+    try {
+      let blob = blobRef.current;
+      if (!blob) {
+        const res = await fetch(downloadUrl, { credentials: "include" });
+        if (!res.ok) throw new Error(`Download failed (${res.status})`);
+        blob = await res.blob();
+        blobRef.current = blob;
+      }
+
+      // iPhone/iPad ignore the download attribute, so use the OS share sheet there.
+      const touchApple = /iP(ad|hone|od)/.test(navigator.userAgent)
+        || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
       const nav = navigator as any;
-      if (nav.canShare && nav.canShare({ files: [pdfFile] })) {
-        try {
-          await nav.share({ files: [pdfFile], title: file });
-        } catch (e) {
-          if ((e as Error).name !== "AbortError") setErr((e as Error).message);
+      if (touchApple && nav.canShare) {
+        const pdfFile = new File([blob], file || "report.pdf", { type: "application/pdf" });
+        if (nav.canShare({ files: [pdfFile] })) {
+          try { await nav.share({ files: [pdfFile], title: file }); }
+          catch (e) { if ((e as Error).name !== "AbortError") setErr((e as Error).message); }
+          return;
         }
-        return;
       }
-      // Browsers that honour the download attribute (Chrome, Firefox, desktop).
-      if (!/standalone/i.test(navigator.userAgent) && !(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = file || "report.pdf";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1500);
-        return;
-      }
+
+      // Desktop (incl. a docked Mac web app): a plain download — straight to the
+      // Downloads folder, or a "where to save?" dialog if Safari is set to ask.
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file || "report.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (e) {
+      setErr((e as Error).message);
     }
-    // Last resort (standalone Safari without share-files support): open the
-    // download in a separate context so the app window never goes blank.
-    window.open(downloadUrl, "_blank");
   }
 
   return (
