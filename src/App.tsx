@@ -21,6 +21,9 @@ const QUICK_FILTERS: [QuickFilter, string][] = [
   ['unassigned', 'Unassigned'],
 ];
 
+type TaskView = 'work' | 'personal' | 'all';
+const isPersonal = (companyName?: string | null) => (companyName ?? '').trim().toLowerCase() === 'personal';
+
 const dayStartUtc = () => { const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
 const nextDueOf = (t: Task): number | null => {
   const ds = [t.due_date, t.min_subtask_due].filter((d): d is number => typeof d === 'number');
@@ -37,6 +40,11 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('');
   const [filterPerson, setFilterPerson] = useState<string>('');
+  const [view, setView] = useState<TaskView>(() => {
+    try { const v = localStorage.getItem('taskView'); if (v === 'work' || v === 'personal' || v === 'all') return v; } catch { /* noop */ }
+    return 'work';
+  });
+  useEffect(() => { try { localStorage.setItem('taskView', view); } catch { /* noop */ } }, [view]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
   const openTask = (task: Task) => { setFocusedSubtaskId(null); setSelectedTask(task); };
@@ -264,11 +272,15 @@ export default function App() {
     const names = (t.assignee_names ?? '').split(',').map((s) => s.trim());
     return names.includes(personName);
   };
+  const matchesView = (companyName?: string | null) =>
+    view === 'all' ? true : view === 'personal' ? isPersonal(companyName) : !isPersonal(companyName);
   const q = search.trim().toLowerCase();
   const visibleTasks = byStatus
     .filter((t) => !q || t.title.toLowerCase().includes(q))
     .filter(matchesQuick)
-    .filter(matchesPerson);
+    .filter(matchesPerson)
+    .filter((t) => matchesView(t.company_name));
+  const visibleCompletedSubs = completedSubtasks.filter((cs) => matchesView(cs.company_name));
   const filtersActive = !!(q || quickFilter || filterPerson || filterCompany);
   const clearAllFilters = () => { setSearch(''); setQuickFilter(''); setFilterPerson(''); setFilterCompany(''); };
 
@@ -372,6 +384,18 @@ export default function App() {
         {!loading && !error && (
           <>
             <div className="list-controls">
+              <div className="seg-control" role="group" aria-label="Work or personal">
+                {(['work', 'personal', 'all'] as TaskView[]).map((v) => (
+                  <button
+                    key={v}
+                    className={`seg-btn ${view === v ? 'active' : ''}`}
+                    onClick={() => setView(v)}
+                  >
+                    {v === 'work' ? 'Work' : v === 'personal' ? 'Personal' : 'All'}
+                  </button>
+                ))}
+              </div>
+
               <input
                 className="text-input search-input"
                 type="search"
@@ -507,10 +531,10 @@ export default function App() {
             )}
 
             {filterStatus === 'completed' && (
-              <CompletedSubtasks items={completedSubtasks} onOpen={openCompletedSubtask} />
+              <CompletedSubtasks items={visibleCompletedSubs} onOpen={openCompletedSubtask} />
             )}
 
-            {visibleTasks.length === 0 && !(filterStatus === 'completed' && completedSubtasks.length > 0) && (
+            {visibleTasks.length === 0 && !(filterStatus === 'completed' && visibleCompletedSubs.length > 0) && (
               <div className="state-card">
                 <div className="state-message muted">
                   {filterStatus === 'completed'
