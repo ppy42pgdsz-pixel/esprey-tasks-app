@@ -40,6 +40,7 @@ export default function PdfView() {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const docRef = useRef<PdfDocument | null>(null);
+  const blobRef = useRef<Blob | null>(null);
 
   const [pageNum, setPageNum] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -104,24 +105,52 @@ export default function PdfView() {
   function prev() { setPageNum((n) => Math.max(1, n - 1)); }
   function next() { setPageNum((n) => Math.min(totalPages || 1, n + 1)); }
 
-  // Download in place (fetch -> blob -> temp link) so the page never navigates
-  // away to the attachment URL and go blank. Keeps the viewer + Back button.
+  // Pre-fetch the file bytes so Save can hand them off within the click gesture
+  // (Safari needs the share call to happen during the user gesture).
+  useEffect(() => {
+    blobRef.current = null;
+    let cancelled = false;
+    fetch(downloadUrl, { credentials: "include" })
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((b) => { if (!cancelled && b) blobRef.current = b; })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [file]);
+
+  // Save the PDF WITHOUT navigating the window (which blanks a standalone/docked
+  // web app that has no browser chrome to go back from). Prefer the OS share
+  // sheet ("Save to Files"); fall back to a normal download link in browsers.
   async function save() {
-    try {
-      const res = await fetch(downloadUrl, { credentials: "include" });
-      if (!res.ok) throw new Error(`Download failed (${res.status})`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file || "report.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) {
-      setErr((e as Error).message);
+    const blob = blobRef.current;
+    // Preferred (works inside a docked/standalone web app): hand the file to the
+    // OS share sheet — "Save to Files", AirDrop, etc. No navigation.
+    if (blob) {
+      const pdfFile = new File([blob], file || "report.pdf", { type: "application/pdf" });
+      const nav = navigator as any;
+      if (nav.canShare && nav.canShare({ files: [pdfFile] })) {
+        try {
+          await nav.share({ files: [pdfFile], title: file });
+        } catch (e) {
+          if ((e as Error).name !== "AbortError") setErr((e as Error).message);
+        }
+        return;
+      }
+      // Browsers that honour the download attribute (Chrome, Firefox, desktop).
+      if (!/standalone/i.test(navigator.userAgent) && !(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file || "report.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+        return;
+      }
     }
+    // Last resort (standalone Safari without share-files support): open the
+    // download in a separate context so the app window never goes blank.
+    window.open(downloadUrl, "_blank");
   }
 
   return (
