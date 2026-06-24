@@ -87,6 +87,7 @@ async function purgeOldCompleted(env: Env): Promise<number> {
       env.DB.prepare('DELETE FROM task_shares WHERE task_id = ?').bind(id),
       env.DB.prepare('DELETE FROM task_attachments WHERE task_id = ?').bind(id),
       env.DB.prepare('DELETE FROM task_events WHERE task_id = ?').bind(id),
+      env.DB.prepare('DELETE FROM notifications WHERE task_id = ?').bind(id),
       env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id),
     ]);
   }

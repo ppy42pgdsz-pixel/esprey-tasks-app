@@ -116,6 +116,16 @@ export interface Contact {
   created_at: number;
 }
 
+export interface AppNotification {
+  id: string;
+  type: string; // task_done | accepted | reinstated
+  title: string;
+  body: string;
+  task_id: string | null;
+  subtask_id: string | null;
+  created_at: number;
+}
+
 export interface SubtaskComment {
   id: string;
   subtask_id: string;

@@ -3,7 +3,7 @@
  * DELETE /api/subtasks/:id — delete a subtask
  */
 
-import { meFromCtx, isTaskOwner, isSubtaskAssignee, logEvent } from '../_lib';
+import { meFromCtx, isTaskOwner, isSubtaskAssignee, logEvent, notify } from '../_lib';
 
 interface Env { DB: D1Database }
 
@@ -96,15 +96,31 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   values.push(id);
   await ctx.env.DB.prepare(`UPDATE subtasks SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
 
-  // Activity timeline: log sign-off and member-done transitions.
+  // Activity timeline + notifications: log sign-off and member-done transitions.
   const label = sub.text.slice(0, 120);
+  const proj = await ctx.env.DB.prepare('SELECT title, owner_email FROM tasks WHERE id = ?').bind(sub.task_id).first<{ title: string; owner_email: string | null }>();
   if ('accepted' in body) {
-    if (body.accepted) await logEvent(ctx.env.DB, sub.task_id, me, 'accepted', `Signed off: ${label}`);
-    else await logEvent(ctx.env.DB, sub.task_id, me, 'reinstated', `Sent back: ${label}`);
+    // Owner accepted/sent back → notify the task's assignees (not the owner).
+    const { results: assignees } = await ctx.env.DB.prepare('SELECT user_email FROM subtask_assignees WHERE subtask_id = ?').bind(id).all<{ user_email: string }>();
+    if (body.accepted) {
+      await logEvent(ctx.env.DB, sub.task_id, me, 'accepted', `Signed off: ${label}`);
+      for (const a of assignees) {
+        if (a.user_email.toLowerCase() !== me) await notify(ctx.env.DB, a.user_email, 'accepted', 'Task accepted', `"${label}" was accepted`, sub.task_id, id);
+      }
+    } else {
+      await logEvent(ctx.env.DB, sub.task_id, me, 'reinstated', `Sent back: ${label}`);
+      for (const a of assignees) {
+        if (a.user_email.toLowerCase() !== me) await notify(ctx.env.DB, a.user_email, 'reinstated', 'Task sent back', `"${label}" needs more work`, sub.task_id, id);
+      }
+    }
   } else if (('status' in body || 'done' in body)) {
     const becameDone = 'status' in body ? body.status === 'done' : !!body.done;
-    // A member marking done starts the sign-off loop; the owner's own done auto-accepts.
-    if (becameDone && !owner) await logEvent(ctx.env.DB, sub.task_id, me, 'subtask_done', `Marked done (awaiting sign-off): ${label}`);
+    // A member marking done starts the sign-off loop → notify the project owner.
+    if (becameDone && !owner) {
+      await logEvent(ctx.env.DB, sub.task_id, me, 'subtask_done', `Marked done (awaiting sign-off): ${label}`);
+      const meName = (await ctx.env.DB.prepare('SELECT name FROM users WHERE email = ?').bind(me).first<{ name: string }>())?.name ?? me.split('@')[0];
+      await notify(ctx.env.DB, proj?.owner_email, 'task_done', 'Task done', `${meName} marked "${label}" done`, sub.task_id, id);
+    }
   }
 
   const updated = await ctx.env.DB.prepare('SELECT * FROM subtasks WHERE id = ?').bind(id).first();

@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, TaskEvent, SubtaskComment, CompletedSubtask, ReportProject, Subtask, User, UserRole } from './types';
+import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, TaskEvent, SubtaskComment, AppNotification, CompletedSubtask, ReportProject, Subtask, User, UserRole } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -109,6 +109,10 @@ export const api = {
     request<{ owner_email: string | null; members_see_all: boolean; user_emails: string[] }>(`/api/tasks/${taskId}/share`),
   setShare: (taskId: string, data: { members_see_all: boolean; user_emails: string[] }) =>
     request<{ ok: boolean; members_see_all: boolean; user_emails: string[] }>(`/api/tasks/${taskId}/share`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  listNotifications: () => request<AppNotification[]>('/api/notifications'),
+  markNotificationsRead: (ids: string[]) =>
+    request<{ ok: boolean; marked: number }>('/api/notifications', { method: 'POST', body: JSON.stringify({ ids }) }),
 
   listComments: (subtaskId: string) =>
     request<SubtaskComment[]>(`/api/subtasks/${subtaskId}/comments`),

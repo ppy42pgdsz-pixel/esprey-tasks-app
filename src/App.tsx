@@ -8,6 +8,7 @@ import SettingsPanel from './components/SettingsPanel';
 import ReportsPanel from './components/ReportsPanel';
 import CompletedSubtasks from './components/CompletedSubtasks';
 import type { CompletedSubtask } from './types';
+import { notifSupported, notifPermission, requestNotifPermission, showNotifications, ensureServiceWorker } from './notifications';
 import './styles.css';
 
 type FilterStatus = 'active' | 'completed';
@@ -58,6 +59,10 @@ export default function App() {
   const [me, setMe] = useState<{ email: string; name: string; role: UserRole } | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [completedSubtasks, setCompletedSubtasks] = useState<CompletedSubtask[]>([]);
+  const [notifPerm, setNotifPerm] = useState<NotificationPermission>(notifPermission());
+  const [pendingTaskId, setPendingTaskId] = useState<string | null>(() => {
+    try { return new URLSearchParams(window.location.search).get('task'); } catch { return null; }
+  });
 
   // Load reference data once
   useEffect(() => {
@@ -136,6 +141,45 @@ export default function App() {
   useEffect(() => {
     if (filterStatus === 'completed') loadCompletedSubtasks();
   }, [filterStatus, loadCompletedSubtasks]);
+
+  // ─── Notifications: poll unread, show OS banners, mark read ───
+  const pollNotifications = useCallback(async () => {
+    if (!notifSupported() || Notification.permission !== 'granted') return;
+    try {
+      const items = await api.listNotifications();
+      if (items.length) {
+        await showNotifications(items);
+        await api.markNotificationsRead(items.map((n) => n.id));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (!notifSupported() || Notification.permission !== 'granted') return;
+    ensureServiceWorker();
+    pollNotifications();
+    const id = window.setInterval(pollNotifications, 30000);
+    const onFocus = () => pollNotifications();
+    window.addEventListener('focus', onFocus);
+    return () => { window.clearInterval(id); window.removeEventListener('focus', onFocus); };
+  }, [pollNotifications]);
+
+  const enableNotifications = async () => {
+    const p = await requestNotifPermission();
+    setNotifPerm(p);
+    if (p === 'granted') { await ensureServiceWorker(); pollNotifications(); }
+  };
+
+  // Open the task named in a ?task= deep link (from clicking a notification).
+  useEffect(() => {
+    if (!pendingTaskId) return;
+    const t = tasks.find((x) => x.id === pendingTaskId);
+    if (t) {
+      openTask(t);
+      setPendingTaskId(null);
+      try { const u = new URL(window.location.href); u.searchParams.delete('task'); window.history.replaceState({}, '', u.pathname + u.search); } catch { /* noop */ }
+    }
+  }, [tasks, pendingTaskId]);
 
   // Keep the list fresh across users without a manual refresh: poll periodically
   // and whenever the window/tab regains focus. loadTasks doesn't toggle the
@@ -373,6 +417,8 @@ export default function App() {
           onRenameCompany={handleRenameCompany}
           onDeleteCompany={handleDeleteCompany}
           onRenameSelf={handleRenameSelf}
+          notifStatus={notifSupported() ? notifPerm : 'unsupported'}
+          onEnableNotifications={enableNotifications}
         />
       )}
 

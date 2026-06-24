@@ -17,6 +17,8 @@ interface Props {
   onRemoveAlias: (email: string, alias: string) => Promise<void>;
   onSetUserCompanies: (email: string, companyIds: string[]) => Promise<void>;
   onRenameSelf: (name: string) => Promise<void>;
+  notifStatus: 'unsupported' | NotificationPermission;
+  onEnableNotifications: () => void;
 }
 
 export default function SettingsPanel(props: Props) {
@@ -24,6 +26,7 @@ export default function SettingsPanel(props: Props) {
     companies, me, users, onClose,
     onCreateCompany, onRenameCompany, onDeleteCompany,
     onCreateUser, onDeleteUser, onAddAlias, onRemoveAlias, onSetUserCompanies, onRenameSelf,
+    notifStatus, onEnableNotifications,
   } = props;
 
   const isAdmin = me?.role === 'admin';
@@ -234,6 +237,24 @@ export default function SettingsPanel(props: Props) {
                 {savingName ? 'Saving…' : 'Save'}
               </button>
             </div>
+          </section>
+        )}
+
+        {me && (
+          <section className="settings-card">
+            <div className="settings-card-label">Notifications</div>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Get a pop-up when a task you assigned is completed, or when work you did is accepted or sent back. They appear while the app is open. On iPhone, add the app to your Home Screen first.
+            </p>
+            {notifStatus === 'unsupported' ? (
+              <p className="muted">Your browser doesn't support notifications.</p>
+            ) : notifStatus === 'granted' ? (
+              <p className="muted">✓ Notifications are on for this device.</p>
+            ) : notifStatus === 'denied' ? (
+              <p className="muted">Notifications are blocked — turn them back on for this site in your browser settings.</p>
+            ) : (
+              <button className="btn-primary" onClick={onEnableNotifications}>Turn on notifications</button>
+            )}
           </section>
         )}
 

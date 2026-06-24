@@ -114,6 +114,32 @@ export async function logEvent(
   }
 }
 
+/**
+ * Queue a notification for a recipient. Best-effort: never breaks the action
+ * that triggered it. The client polls unread rows and shows an OS banner.
+ */
+export async function notify(
+  db: D1Database,
+  userEmail: string | null | undefined,
+  type: string,
+  title: string,
+  body: string,
+  taskId: string | null,
+  subtaskId: string | null,
+): Promise<void> {
+  const to = (userEmail ?? '').toLowerCase();
+  if (!to) return;
+  try {
+    const id = crypto.randomUUID().replace(/-/g, '').slice(0, 21);
+    await db
+      .prepare('INSERT INTO notifications (id, user_email, type, title, body, task_id, subtask_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, to, type, title.slice(0, 200), body.slice(0, 500), taskId, subtaskId, Date.now())
+      .run();
+  } catch (e) {
+    console.error('notify failed', type, e);
+  }
+}
+
 /** Is `me` (a canonical email) an admin? */
 export async function isAdminEmail(db: D1Database, me: string, adminEmail?: string): Promise<boolean> {
   if (!me) return false;

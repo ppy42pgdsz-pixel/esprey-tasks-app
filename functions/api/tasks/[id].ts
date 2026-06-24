@@ -90,6 +90,7 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
     ctx.env.DB.prepare('DELETE FROM task_shares WHERE task_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM task_attachments WHERE task_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM task_events WHERE task_id = ?').bind(id),
+    ctx.env.DB.prepare('DELETE FROM notifications WHERE task_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id),
   ]);
   return json({ ok: true });
