@@ -113,6 +113,8 @@ export const api = {
   listNotifications: () => request<AppNotification[]>('/api/notifications'),
   markNotificationsRead: (ids: string[]) =>
     request<{ ok: boolean; marked: number }>('/api/notifications', { method: 'POST', body: JSON.stringify({ ids }) }),
+  sendTestPush: () =>
+    request<{ ok: boolean; count: number; error?: string }>('/api/push/test', { method: 'POST' }),
 
   listComments: (subtaskId: string) =>
     request<SubtaskComment[]>(`/api/subtasks/${subtaskId}/comments`),

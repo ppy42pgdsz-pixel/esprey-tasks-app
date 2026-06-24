@@ -33,6 +33,50 @@ export async function requestNotifPermission(): Promise<NotificationPermission> 
   return result;
 }
 
+function vapidKeyToBytes(base64url: string): Uint8Array {
+  const b64 = (base64url + '='.repeat((4 - (base64url.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+export function pushSupported(): boolean {
+  return notifSupported() && 'PushManager' in window;
+}
+
+/** Subscribe this browser to Web Push and register it server-side. Returns true on success. */
+export async function subscribeToPush(): Promise<boolean> {
+  if (!pushSupported() || Notification.permission !== 'granted') return false;
+  const reg = await ensureServiceWorker();
+  if (!reg) return false;
+  try {
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const { key } = await fetch('/api/push/key').then((r) => r.json() as Promise<{ key: string }>);
+      if (!key) return false;
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKeyToBytes(key) as BufferSource });
+    }
+    const json = sub.toJSON();
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: { endpoint: sub.endpoint, keys: json.keys } }),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True if this browser already has a live push subscription. */
+export async function hasPushSubscription(): Promise<boolean> {
+  if (!pushSupported()) return false;
+  const reg = await ensureServiceWorker();
+  if (!reg) return false;
+  try { return !!(await reg.pushManager.getSubscription()); } catch { return false; }
+}
+
 /** Show OS banners for the given notifications (no-op without permission). */
 export async function showNotifications(items: AppNotification[]): Promise<void> {
   if (!notifSupported() || Notification.permission !== 'granted' || items.length === 0) return;

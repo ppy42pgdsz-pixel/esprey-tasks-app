@@ -19,6 +19,7 @@ interface Props {
   onRenameSelf: (name: string) => Promise<void>;
   notifStatus: 'unsupported' | NotificationPermission;
   onEnableNotifications: () => void;
+  onTestNotification: () => void;
 }
 
 export default function SettingsPanel(props: Props) {
@@ -26,7 +27,7 @@ export default function SettingsPanel(props: Props) {
     companies, me, users, onClose,
     onCreateCompany, onRenameCompany, onDeleteCompany,
     onCreateUser, onDeleteUser, onAddAlias, onRemoveAlias, onSetUserCompanies, onRenameSelf,
-    notifStatus, onEnableNotifications,
+    notifStatus, onEnableNotifications, onTestNotification,
   } = props;
 
   const isAdmin = me?.role === 'admin';
@@ -249,7 +250,10 @@ export default function SettingsPanel(props: Props) {
             {notifStatus === 'unsupported' ? (
               <p className="muted">Your browser doesn't support notifications.</p>
             ) : notifStatus === 'granted' ? (
-              <p className="muted">✓ Notifications are on for this device.</p>
+              <div className="settings-card-row">
+                <span className="muted">✓ Notifications are on for this device.</span>
+                <button className="btn-secondary sm" onClick={onTestNotification}>Send test</button>
+              </div>
             ) : notifStatus === 'denied' ? (
               <p className="muted">Notifications are blocked — turn them back on for this site in your browser settings.</p>
             ) : (

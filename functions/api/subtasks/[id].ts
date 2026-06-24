@@ -4,8 +4,9 @@
  */
 
 import { meFromCtx, isTaskOwner, isSubtaskAssignee, logEvent, notify } from '../_lib';
+import { pushToUser, type WebPushEnv } from '../_webpush';
 
-interface Env { DB: D1Database }
+type Env = WebPushEnv;
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -102,16 +103,14 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   if ('accepted' in body) {
     // Owner accepted/sent back → notify the task's assignees (not the owner).
     const { results: assignees } = await ctx.env.DB.prepare('SELECT user_email FROM subtask_assignees WHERE subtask_id = ?').bind(id).all<{ user_email: string }>();
-    if (body.accepted) {
-      await logEvent(ctx.env.DB, sub.task_id, me, 'accepted', `Signed off: ${label}`);
-      for (const a of assignees) {
-        if (a.user_email.toLowerCase() !== me) await notify(ctx.env.DB, a.user_email, 'accepted', 'Task accepted', `"${label}" was accepted`, sub.task_id, id);
-      }
-    } else {
-      await logEvent(ctx.env.DB, sub.task_id, me, 'reinstated', `Sent back: ${label}`);
-      for (const a of assignees) {
-        if (a.user_email.toLowerCase() !== me) await notify(ctx.env.DB, a.user_email, 'reinstated', 'Task sent back', `"${label}" needs more work`, sub.task_id, id);
-      }
+    const url = `/?task=${sub.task_id}`;
+    const title = body.accepted ? 'Task accepted' : 'Task sent back';
+    const text = body.accepted ? `"${label}" was accepted` : `"${label}" needs more work`;
+    await logEvent(ctx.env.DB, sub.task_id, me, body.accepted ? 'accepted' : 'reinstated', `${body.accepted ? 'Signed off' : 'Sent back'}: ${label}`);
+    for (const a of assignees) {
+      if (a.user_email.toLowerCase() === me) continue;
+      await notify(ctx.env.DB, a.user_email, body.accepted ? 'accepted' : 'reinstated', title, text, sub.task_id, id);
+      ctx.waitUntil(pushToUser(ctx.env, a.user_email, { title, body: text, url, tag: `${id}-${body.accepted ? 'acc' : 'rei'}` }));
     }
   } else if (('status' in body || 'done' in body)) {
     const becameDone = 'status' in body ? body.status === 'done' : !!body.done;
@@ -119,7 +118,9 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     if (becameDone && !owner) {
       await logEvent(ctx.env.DB, sub.task_id, me, 'subtask_done', `Marked done (awaiting sign-off): ${label}`);
       const meName = (await ctx.env.DB.prepare('SELECT name FROM users WHERE email = ?').bind(me).first<{ name: string }>())?.name ?? me.split('@')[0];
-      await notify(ctx.env.DB, proj?.owner_email, 'task_done', 'Task done', `${meName} marked "${label}" done`, sub.task_id, id);
+      const text = `${meName} marked "${label}" done`;
+      await notify(ctx.env.DB, proj?.owner_email, 'task_done', 'Task done', text, sub.task_id, id);
+      ctx.waitUntil(pushToUser(ctx.env, proj?.owner_email, { title: 'Task done', body: text, url: `/?task=${sub.task_id}`, tag: `${id}-done` }));
     }
   }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from './api';
 import type { Task, TaskStatus, RecurUnit, Company, User, UserRole } from './types';
 import TaskList from './components/TaskList';
@@ -8,7 +8,7 @@ import SettingsPanel from './components/SettingsPanel';
 import ReportsPanel from './components/ReportsPanel';
 import CompletedSubtasks from './components/CompletedSubtasks';
 import type { CompletedSubtask } from './types';
-import { notifSupported, notifPermission, requestNotifPermission, showNotifications, ensureServiceWorker } from './notifications';
+import { notifSupported, notifPermission, requestNotifPermission, showNotifications, ensureServiceWorker, subscribeToPush } from './notifications';
 import './styles.css';
 
 type FilterStatus = 'active' | 'completed';
@@ -143,12 +143,15 @@ export default function App() {
   }, [filterStatus, loadCompletedSubtasks]);
 
   // ─── Notifications: poll unread, show OS banners, mark read ───
+  // When Web Push is active, banners arrive via push (open or closed) so the
+  // poll only clears the inbox; otherwise the poll shows banners (app-open only).
+  const pushActiveRef = useRef(false);
   const pollNotifications = useCallback(async () => {
     if (!notifSupported() || Notification.permission !== 'granted') return;
     try {
       const items = await api.listNotifications();
       if (items.length) {
-        await showNotifications(items);
+        if (!pushActiveRef.current) await showNotifications(items);
         await api.markNotificationsRead(items.map((n) => n.id));
       }
     } catch { /* ignore */ }
@@ -157,6 +160,8 @@ export default function App() {
   useEffect(() => {
     if (!notifSupported() || Notification.permission !== 'granted') return;
     ensureServiceWorker();
+    // Make sure the server has this device's push subscription.
+    subscribeToPush().then((ok) => { pushActiveRef.current = ok; });
     pollNotifications();
     const id = window.setInterval(pollNotifications, 30000);
     const onFocus = () => pollNotifications();
@@ -167,7 +172,20 @@ export default function App() {
   const enableNotifications = async () => {
     const p = await requestNotifPermission();
     setNotifPerm(p);
-    if (p === 'granted') { await ensureServiceWorker(); pollNotifications(); }
+    if (p === 'granted') {
+      await ensureServiceWorker();
+      pushActiveRef.current = await subscribeToPush();
+      pollNotifications();
+    }
+  };
+
+  const sendTestNotification = async () => {
+    try {
+      const r = await api.sendTestPush();
+      alert(r.ok ? 'Sent — you should get a banner in a moment.' : (r.error || 'No subscribed device yet.'));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not send test.');
+    }
   };
 
   // Open the task named in a ?task= deep link (from clicking a notification).
@@ -419,6 +437,7 @@ export default function App() {
           onRenameSelf={handleRenameSelf}
           notifStatus={notifSupported() ? notifPerm : 'unsupported'}
           onEnableNotifications={enableNotifications}
+          onTestNotification={sendTestNotification}
         />
       )}
 
