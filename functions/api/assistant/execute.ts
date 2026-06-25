@@ -5,8 +5,9 @@
  */
 import { meFromCtx, json } from '../_lib';
 import { executeActions, type AssistantAction } from './_assistant';
+import type { WebPushEnv } from '../_webpush';
 
-interface Env { DB: D1Database }
+type Env = WebPushEnv;
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const me = await meFromCtx(ctx.env.DB, ctx);

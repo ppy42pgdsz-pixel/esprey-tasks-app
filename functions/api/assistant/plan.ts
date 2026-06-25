@@ -37,6 +37,7 @@ ${ACTION_SPEC}
 Rules:
 - Only use project_id and task_id values that appear in CONTEXT. NEVER invent ids.
 - "task" = an item inside a project (a subtask id). "project" = a top-level container.
+- Each project has an "owned" field. If owned is false, it belongs to someone else and only its tasks ASSIGNED TO THE USER are listed — you may ONLY use set_task_status on those tasks. Do NOT rename, merge, move, add to, assign, set due dates on, or delete a project where owned is false.
 - For merge_projects: set target_project_id to keep one of the existing projects, or new_title to create a fresh one; all tasks are moved and the emptied source projects are deleted automatically.
 - assignee_emails must come from the TEAM list.
 - Today is ${today}. Resolve relative dates (e.g. "Friday") to YYYY-MM-DD.

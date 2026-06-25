@@ -5,7 +5,10 @@
  * proposes actions from this menu, which the app validates and runs.
  */
 
-interface Env { DB: D1Database }
+import { notify, logEvent } from '../_lib';
+import { pushToUser, type WebPushEnv } from '../_webpush';
+
+type Env = WebPushEnv;
 
 export type AssistantAction =
   | { type: 'create_project'; title: string; company_name?: string; tasks?: string[] }
@@ -20,20 +23,43 @@ export type AssistantAction =
 
 function nanoid() { return crypto.randomUUID().replace(/-/g, '').slice(0, 21); }
 
-/** Compact snapshot of the user's editable projects/tasks + team, for the prompt. */
+/** Compact snapshot of the user's projects/tasks + team, for the prompt. */
 export async function loadContext(db: D1Database, me: string) {
-  const { results: projects } = await db
+  const out = [] as Array<{ id: string; title: string; company: string | null; owned: boolean; owner_name?: string | null; tasks: Array<{ id: string; text: string }> }>;
+
+  // Projects the user owns — full task list, full edit rights.
+  const { results: owned } = await db
     .prepare("SELECT id, title, company_name FROM tasks WHERE owner_email = ? AND status != 'done' AND completed_at IS NULL ORDER BY created_at DESC LIMIT 100")
     .bind(me)
     .all<{ id: string; title: string; company_name: string | null }>();
-  const out = [] as Array<{ id: string; title: string; company: string | null; tasks: Array<{ id: string; text: string }> }>;
-  for (const p of projects) {
+  for (const p of owned) {
     const { results: subs } = await db
       .prepare('SELECT id, text FROM subtasks WHERE task_id = ? ORDER BY position ASC, created_at ASC LIMIT 60')
       .bind(p.id)
       .all<{ id: string; text: string }>();
-    out.push({ id: p.id, title: p.title, company: p.company_name, tasks: subs });
+    out.push({ id: p.id, title: p.title, company: p.company_name, owned: true, tasks: subs });
   }
+
+  // Projects owned by others where the user is assigned tasks — only their tasks,
+  // and only status changes are allowed.
+  const { results: assigned } = await db
+    .prepare(
+      `SELECT DISTINCT t.id, t.title, t.company_name, u.name AS owner_name
+       FROM tasks t JOIN subtasks s ON s.task_id = t.id JOIN subtask_assignees sa ON sa.subtask_id = s.id
+       LEFT JOIN users u ON u.email = t.owner_email
+       WHERE sa.user_email = ? AND LOWER(t.owner_email) != ? AND t.status != 'done' AND t.completed_at IS NULL
+       ORDER BY t.created_at DESC LIMIT 100`,
+    )
+    .bind(me, me)
+    .all<{ id: string; title: string; company_name: string | null; owner_name: string | null }>();
+  for (const p of assigned) {
+    const { results: subs } = await db
+      .prepare('SELECT id, text FROM subtasks WHERE task_id = ? AND id IN (SELECT subtask_id FROM subtask_assignees WHERE user_email = ?) ORDER BY position ASC, created_at ASC LIMIT 60')
+      .bind(p.id, me)
+      .all<{ id: string; text: string }>();
+    out.push({ id: p.id, title: p.title, company: p.company_name, owned: false, owner_name: p.owner_name, tasks: subs });
+  }
+
   const { results: team } = await db.prepare('SELECT name, email FROM users ORDER BY name').all<{ name: string; email: string }>();
   return { projects: out, team };
 }
@@ -170,10 +196,25 @@ export async function executeActions(env: Env, me: string, actions: AssistantAct
           const status = a.status === 'in_progress' || a.status === 'done' ? a.status : 'todo';
           let n = 0;
           for (const tid of a.task_ids ?? []) {
-            if (!(await ownsSubtask(db, me, tid))) continue;
+            const sub = await db.prepare('SELECT task_id, text FROM subtasks WHERE id = ?').bind(tid).first<{ task_id: string; text: string }>();
+            if (!sub) continue;
+            const owner = await ownsProject(db, me, sub.task_id);
+            const assignee = owner ? false : !!(await db.prepare('SELECT 1 FROM subtask_assignees WHERE subtask_id = ? AND user_email = ?').bind(tid, me).first());
+            if (!owner && !assignee) continue; // can only act on own or assigned tasks
+            // The owner's "done" auto-accepts; an assignee's "done" awaits sign-off.
+            const acceptedAt = status === 'done' && owner ? now : null;
             await db.prepare('UPDATE subtasks SET status = ?, done = ?, accepted_at = ? WHERE id = ?')
-              .bind(status, status === 'done' ? 1 : 0, status === 'done' ? now : null, tid).run();
+              .bind(status, status === 'done' ? 1 : 0, acceptedAt, tid).run();
             n++;
+            // Assignee marking done → notify the project owner (same as the UI flow).
+            if (status === 'done' && assignee) {
+              const proj = await db.prepare('SELECT title, owner_email FROM tasks WHERE id = ?').bind(sub.task_id).first<{ title: string; owner_email: string | null }>();
+              const meName = (await db.prepare('SELECT name FROM users WHERE email = ?').bind(me).first<{ name: string }>())?.name ?? me.split('@')[0];
+              const label = sub.text.slice(0, 120);
+              await logEvent(db, sub.task_id, me, 'subtask_done', `Marked done (awaiting sign-off): ${label}`);
+              await notify(db, proj?.owner_email, 'task_done', 'Task done', `${meName} marked "${label}" done`, sub.task_id, tid);
+              await pushToUser(env, proj?.owner_email, { title: 'Task done', body: `${meName} marked "${label}" done`, url: `/?task=${sub.task_id}`, tag: `${tid}-done` });
+            }
           }
           results.push(`Set status on ${n} task(s).`);
           break;
