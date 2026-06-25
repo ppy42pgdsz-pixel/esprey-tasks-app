@@ -6,6 +6,7 @@ import TaskDetail from './components/TaskDetail';
 import AddTaskForm from './components/AddTaskForm';
 import SettingsPanel from './components/SettingsPanel';
 import ReportsPanel from './components/ReportsPanel';
+import LibraryPanel from './components/LibraryPanel';
 import CompletedSubtasks from './components/CompletedSubtasks';
 import Assistant from './components/Assistant';
 import type { CompletedSubtask } from './types';
@@ -55,6 +56,7 @@ export default function App() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showReports, setShowReports] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [me, setMe] = useState<{ email: string; name: string; role: UserRole } | null>(null);
@@ -403,6 +405,9 @@ export default function App() {
             <button className="icon-btn" title="Outstanding report" aria-label="Outstanding report" onClick={() => setShowReports(true)}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             </button>
+            <button className="icon-btn" title="Library" aria-label="Library" onClick={() => setShowLibrary(true)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h5l2 2h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/></svg>
+            </button>
           </div>
 
           <div className="header-title">
@@ -444,6 +449,10 @@ export default function App() {
 
       {showReports && (
         <ReportsPanel companies={companies} onClose={() => setShowReports(false)} />
+      )}
+
+      {showLibrary && (
+        <LibraryPanel onClose={() => setShowLibrary(false)} />
       )}
 
       <main className="main">
