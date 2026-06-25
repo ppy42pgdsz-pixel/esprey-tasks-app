@@ -44,6 +44,32 @@ export function nanoid(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 21);
 }
 
+/** Minimal HTML escaping. */
+export function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Plain text → simple HTML (preserves line breaks). */
+export function textToHtml(text: string): string {
+  return `<pre style="white-space:pre-wrap;font-family:inherit;margin:0">${escapeHtml(text)}</pre>`;
+}
+
+/** Wrap raw email HTML (or text) in a standalone document for PDF rendering. */
+export function wrapEmailHtml(subject: string, innerHtml: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>`
+    + `body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:13px;color:#1c1917;line-height:1.5;}`
+    + `h1.subject{font-size:16px;margin:0 0 14px;}img{max-width:100%;height:auto;}table{max-width:100%;}`
+    + `</style></head><body>`
+    + (subject ? `<h1 class="subject">${escapeHtml(subject)}</h1>` : '')
+    + innerHtml
+    + `</body></html>`;
+}
+
+/** Make a string safe for use as a filename. */
+export function sanitizeFilename(s: string): string {
+  return (s || '').replace(/[^\w .()-]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || 'email';
+}
+
 /** R2 key: tasks/<YYYY>/<MM>/<id>.<ext> */
 export function r2KeyForAttachment(id: string, ext: string): string {
   const d = new Date();

@@ -12,7 +12,8 @@
 
 import PostalMime from 'postal-mime';
 import { extractTask, type AiAttachment, type ParsedTask } from './anthropic';
-import { toUint8, uint8ToBase64, extFromMime, nanoid, r2KeyForAttachment } from './util';
+import { toUint8, uint8ToBase64, extFromMime, nanoid, r2KeyForAttachment, wrapEmailHtml, textToHtml, sanitizeFilename } from './util';
+import { htmlToPdf } from './pdfshift';
 
 interface Env {
   DB: D1Database;
@@ -21,6 +22,7 @@ interface Env {
   ADMIN_EMAIL: string;
   ADMIN_NAME: string;
   RESEND_API_KEY?: string;
+  PDFSHIFT_API_KEY?: string;
   APP_DOMAIN?: string;
 }
 
@@ -345,6 +347,78 @@ async function generateRecurring(env: Env): Promise<number> {
   return made;
 }
 
+/** True if the forwarder's note explicitly asks to file this into the library. */
+function isLibraryIntent(note: string): boolean {
+  return /\blibrar(y|ies)\b/i.test((note || '').slice(0, 600));
+}
+
+/** 1–2 sentence Claude summary of a file (worker-side). null if unsupported. */
+async function summarizeForLibrary(apiKey: string, mime: string, filename: string, bytes: Uint8Array): Promise<string | null> {
+  if (bytes.length > 5 * 1024 * 1024) return null;
+  const lower = (mime || '').toLowerCase();
+  let media: unknown;
+  if (lower.startsWith('image/')) media = { type: 'image', source: { type: 'base64', media_type: lower, data: uint8ToBase64(bytes) } };
+  else if (lower === 'application/pdf') media = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: uint8ToBase64(bytes) } };
+  else if (lower.startsWith('text/') || lower === 'application/json') media = { type: 'text', text: `File "${filename}" contents:\n\n${new TextDecoder().decode(bytes).slice(0, 8000)}` };
+  else return null;
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, messages: [{ role: 'user', content: [media, { type: 'text', text: 'In 1-2 sentences, summarize what this file is and its key contents. Be concise and factual. Output only the summary.' }] }] }),
+    });
+    if (!resp.ok) return null;
+    const r = await resp.json<{ content: Array<{ type: string; text: string }> }>();
+    return r.content.find((c) => c.type === 'text')?.text?.trim() || null;
+  } catch { return null; }
+}
+
+/** Store a file in a user's library (R2 + DB row), starting its orphan clock. */
+async function storeLibraryFile(env: Env, ownerEmail: string, bytes: Uint8Array, mime: string, filename: string, summary: string | null): Promise<void> {
+  const id = nanoid();
+  const key = `library/${ownerEmail}/${id}`;
+  await env.ATTACHMENTS.put(key, bytes, { httpMetadata: { contentType: mime } });
+  const now = Date.now();
+  await env.DB.prepare(
+    'INSERT INTO library_files (id, user_email, r2_key, filename, mime_type, size, summary, created_at, orphaned_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind(id, ownerEmail, key, filename, mime, bytes.length, summary, now, now).run();
+}
+
+/** Forward-to-library: render the email to a PDF and store it + its attachments. */
+async function handleLibraryEmail(
+  env: Env,
+  ownerEmail: string,
+  subject: string,
+  bodyHtml: string | null,
+  bodyText: string,
+  toStore: { bytes: Uint8Array; mime: string; filename: string }[],
+): Promise<void> {
+  // Render the email body itself to a PDF (needs PDFShift configured).
+  if (env.PDFSHIFT_API_KEY) {
+    try {
+      const inner = bodyHtml && bodyHtml.trim() ? bodyHtml : textToHtml(bodyText);
+      const pdf = await htmlToPdf({ apiKey: env.PDFSHIFT_API_KEY, html: wrapEmailHtml(subject, inner) });
+      const fname = `${sanitizeFilename(subject)}.pdf`;
+      const summary = await summarizeForLibrary(env.ANTHROPIC_API_KEY, 'application/pdf', fname, pdf);
+      await storeLibraryFile(env, ownerEmail, pdf, 'application/pdf', fname, summary);
+    } catch (e) {
+      console.error('email->PDF render failed', e);
+    }
+  } else {
+    console.log('PDFSHIFT_API_KEY not set — skipping email-body PDF render');
+  }
+  // Store the email's attachments in the library too.
+  for (const s of toStore) {
+    try {
+      const summary = await summarizeForLibrary(env.ANTHROPIC_API_KEY, s.mime, s.filename, s.bytes);
+      await storeLibraryFile(env, ownerEmail, s.bytes, s.mime, s.filename, summary);
+    } catch (e) {
+      console.error('library attachment store failed', s.filename, e);
+    }
+  }
+  console.log(`Filed email to library for ${ownerEmail}: PDF + ${toStore.length} attachment(s)`);
+}
+
 export default {
   // Cron handlers (see wrangler.toml [triggers]).
   async scheduled(event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
@@ -427,6 +501,16 @@ export default {
 
     const combinedBody = (outerBody + emlText).trim();
 
+    // Who forwarded it (alias-aware) — owns the resulting task or library files.
+    const ownerEmail = await resolveOwner(env.DB, message.from, env.ADMIN_EMAIL);
+
+    // Forward-to-library: an explicit "…to the library" note files the email
+    // (rendered to PDF) plus its attachments into the library, with no task.
+    if (isLibraryIntent(outerBody)) {
+      await handleLibraryEmail(env, ownerEmail, subject, parsed.html ?? null, combinedBody, toStore);
+      return;
+    }
+
     // Extract the task with Claude (fall back to subject/body on failure).
     let task: ParsedTask;
     try {
@@ -447,8 +531,6 @@ export default {
 
     const now = Date.now();
     const id = nanoid();
-    // The task belongs to the employee who forwarded it (envelope sender).
-    const ownerEmail = await resolveOwner(env.DB, message.from, env.ADMIN_EMAIL);
 
     await env.DB.prepare(
       `INSERT INTO tasks (
