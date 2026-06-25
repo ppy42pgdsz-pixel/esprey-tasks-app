@@ -103,26 +103,28 @@ Rules:
     }
   }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 1500,
-      messages: [{ role: 'user', content }],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Claude API error: ${response.status}`);
+  async function ask(blocks: ContentBlock[]): Promise<string> {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 1500, messages: [{ role: 'user', content: blocks }] }),
+    });
+    if (!response.ok) throw new Error(`Claude API error: ${response.status}`);
+    const result = await response.json<{ content: Array<{ type: string; text: string }> }>();
+    return result.content.find((c) => c.type === 'text')?.text ?? '{}';
   }
 
-  const result = await response.json<{ content: Array<{ type: string; text: string }> }>();
-  const text = result.content.find((c) => c.type === 'text')?.text ?? '{}';
+  let text: string;
+  try {
+    text = await ask(content);
+  } catch (e) {
+    // Reading the attachments failed (e.g. a password-protected or oversized
+    // PDF the model can't open). Fall back to planning from the instruction +
+    // body text alone, so an explicit note like "add these to my library" is
+    // still honoured even when the files themselves can't be read.
+    console.error('planEmail with attachments failed, retrying text-only:', e);
+    text = await ask([{ type: 'text', text: prompt }]);
+  }
   return parseEmailPlan(text, hasFiles);
 }
 

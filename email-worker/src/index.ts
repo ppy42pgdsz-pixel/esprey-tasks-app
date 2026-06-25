@@ -30,14 +30,24 @@ const AI_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 /** Is this attachment something we keep (real file, not an inline signature image)? */
 function isWantedAttachment(att: { mimeType?: string; filename?: string; disposition?: string; contentId?: string }): boolean {
-  const disposition = (att.disposition ?? '').toString().toLowerCase();
-  if (disposition === 'inline') return false;
-  if (att.contentId) return false;
   const mt = (att.mimeType ?? '').toLowerCase();
-  if (mt.startsWith('image/')) return true;
-  if (mt === 'application/pdf') return true;
-  if (mt === 'message/rfc822') return true;
-  if ((att.filename ?? '').toLowerCase().endsWith('.eml')) return true;
+  const fn = (att.filename ?? '').toLowerCase();
+  const disposition = (att.disposition ?? '').toString().toLowerCase();
+
+  // Always keep real document attachments — even when the sending client tags
+  // them "inline" or assigns a Content-ID. Apple Mail and Outlook routinely do
+  // this for forwarded PDFs (they preview them in the message body), and the
+  // old inline/Content-ID filter was wrongly discarding them.
+  if (mt === 'application/pdf' || fn.endsWith('.pdf')) return true;
+  if (mt === 'message/rfc822' || fn.endsWith('.eml')) return true;
+
+  // Images: skip embedded signature/logo graphics, which are referenced inline
+  // (inline disposition) or by Content-ID. Keep genuine image attachments.
+  if (mt.startsWith('image/')) {
+    if (disposition === 'inline') return false;
+    if (att.contentId) return false;
+    return true;
+  }
   return false;
 }
 
@@ -526,10 +536,12 @@ export default {
         } catch (e) {
           console.error('failed to parse .eml attachment:', e);
         }
-      } else if (mime === 'application/pdf' || AI_IMAGE_TYPES.includes(mime)) {
+      } else if ((mime === 'application/pdf' || AI_IMAGE_TYPES.includes(mime)) && bytes.length <= 4.5 * 1024 * 1024) {
+        // Send to the model for planning, but only if small enough to avoid an
+        // over-large request. Larger files are still stored, just not "read".
         aiAttachments.push({ mime, base64: uint8ToBase64(bytes) });
       }
-      // Other types (e.g. HEIC) are stored but not sent to the model.
+      // Other types (e.g. HEIC) and large files are stored but not sent to the model.
     }
 
     // If an email was attached, prefer the original sender for the task.
@@ -651,7 +663,7 @@ export default {
     await sendConfirmation(env, ownerEmail, subject, summaryLines);
 
     console.log(
-      `Email processed for ${ownerEmail}: project=${projectId ?? 'none'} tasks=${plan.tasks.length} lib=${toLibraryCount} proj=${toProjectCount} pdf=${plan.file_email_as_pdf}`,
+      `Email processed for ${ownerEmail}: files=${toStore.length} project=${projectId ?? 'none'} tasks=${plan.tasks.length} lib=${toLibraryCount} proj=${toProjectCount} pdf=${plan.file_email_as_pdf}`,
     );
   },
 } satisfies ExportedHandler<Env>;
