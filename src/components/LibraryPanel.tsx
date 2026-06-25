@@ -5,6 +5,19 @@ import { downloadFile } from '../download';
 
 const fmtDate = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const fmtSize = (n?: number | null) => (n ? `${(n / 1024 / 1024).toFixed(n < 1024 * 1024 ? 2 : 1)} MB` : '');
+// Relative "added X ago" so you can spot something you just emailed in.
+function addedAgo(ms: number): string {
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 45) return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min${m === 1 ? '' : 's'} ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hr${h === 1 ? '' : 's'} ago`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return 'yesterday';
+  if (d < 7) return `${d} days ago`;
+  return fmtDate(ms);
+}
 
 interface Props { onClose: () => void }
 
@@ -59,8 +72,10 @@ export default function LibraryPanel({ onClose }: Props) {
                 <li key={f.id} className="lib-row">
                   <div className="lib-row-main">
                     <button type="button" className="file-name file-link" onClick={() => downloadFile(`/api/library/${f.id}?download=1`)}>📎 {f.filename}</button>
-                    <div className="lib-row-meta">{[fmtSize(f.size), `added ${fmtDate(f.created_at)}`].filter(Boolean).join(' · ')}</div>
-                    {f.summary && <div className="lib-summary">{f.summary}</div>}
+                    <div className="lib-row-meta">added {addedAgo(f.created_at)}{f.size ? ` · ${fmtSize(f.size)}` : ''}</div>
+                    {f.summary
+                      ? <div className="lib-summary-strong">{f.summary}</div>
+                      : <div className="lib-row-meta">No summary yet.</div>}
                   </div>
                   <button className="link-btn danger" onClick={() => remove(f)}>Remove</button>
                 </li>
