@@ -44,6 +44,10 @@ WORKING WITH OTHERS
 - Tagging a company on a project is just a label for filtering; it doesn't share anything.
 - Each morning you'll get a short email summarising what's on your plate: tasks awaiting your sign-off, tasks assigned to you, and anything due soon. Nothing pending, no email.
 
+NOTIFICATIONS
+- You can get a pop-up the moment something needs you: a task you assigned is marked done, or work you did is accepted or sent back. Turn it on in Settings → Notifications → "Turn on notifications", then allow it when your browser asks. It's per device, so do it on each device you use.
+- On iPhone you must first add the app to your Home Screen (open ${appUrl} in Safari, tap Share, then "Add to Home Screen"), open it from there, and then turn notifications on. On a computer (Mac/Windows) and on Android it works straight away.
+
 KEEPING IT TIDY
 - Once a project is complete it moves to the Completed view. Completed projects are automatically removed after one month, so your list stays focused on what's still live.
 - Not even the admin can see your private projects.
@@ -69,6 +73,11 @@ ${adminName}`;
     <li>When you finish a task assigned to you, mark it <strong>Done</strong>. It goes back to the project owner to sign off — they either accept it or send it back with a note if something's still needed.</li>
     <li>Tagging a company on a project is just a label for filtering; it doesn't share anything.</li>
     <li>Each morning you'll get a short email summarising what's on your plate: tasks awaiting your sign-off, tasks assigned to you, and anything due soon. Nothing pending, no email.</li>
+  </ul>
+  <p><strong>Notifications</strong></p>
+  <ul>
+    <li>Get a pop-up the moment something needs you — a task you assigned is marked done, or work you did is accepted or sent back. Turn it on in <strong>Settings → Notifications → "Turn on notifications"</strong>, then allow it when your browser asks. It's per device, so do it on each device you use.</li>
+    <li><strong>On iPhone</strong> you must first add the app to your Home Screen: open <a href="${appUrl}">${appUrl}</a> in Safari, tap <strong>Share</strong>, then <strong>"Add to Home Screen"</strong>, open it from there, and then turn notifications on. On a computer (Mac/Windows) and on Android it works straight away.</li>
   </ul>
   <p><strong>Keeping it tidy</strong></p>
   <ul>
