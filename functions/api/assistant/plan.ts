@@ -6,8 +6,9 @@
  */
 import { meFromCtx, json } from '../_lib';
 import { loadContext, type AssistantAction } from './_assistant';
+import { buildMediaBlock } from '../_attachments';
 
-interface Env { DB: D1Database; ANTHROPIC_API_KEY: string }
+interface Env { DB: D1Database; ANTHROPIC_API_KEY: string; ATTACHMENTS: R2Bucket }
 
 const ACTION_SPEC = `You can ONLY use these action types (JSON objects):
 - {"type":"create_project","title":string,"company_name"?:string,"tasks"?:string[]}
@@ -22,9 +23,20 @@ const ACTION_SPEC = `You can ONLY use these action types (JSON objects):
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const me = await meFromCtx(ctx.env.DB, ctx);
-  const body = await ctx.request.json<{ message?: string }>().catch(() => ({} as { message?: string }));
+  const body = await ctx.request.json<{ message?: string; library_file_id?: string }>().catch(() => ({} as { message?: string; library_file_id?: string }));
   const message = (body.message ?? '').trim();
   if (!message) return json({ error: 'message is required' }, 400);
+
+  // Optional attached document (one of the user's library files) for Claude to read.
+  let mediaBlock: unknown | null = null;
+  if (body.library_file_id) {
+    const lib = await ctx.env.DB.prepare('SELECT r2_key, filename, mime_type FROM library_files WHERE id = ? AND user_email = ?')
+      .bind(body.library_file_id, me).first<{ r2_key: string; filename: string | null; mime_type: string | null }>();
+    if (lib) {
+      const obj = await ctx.env.ATTACHMENTS.get(lib.r2_key);
+      if (obj) mediaBlock = buildMediaBlock(lib.mime_type || '', lib.filename || 'file', await obj.arrayBuffer(), 20000);
+    }
+  }
 
   const { projects, team } = await loadContext(ctx.env.DB, me);
   const today = new Date().toISOString().slice(0, 10);
@@ -43,6 +55,7 @@ Rules:
 - Today is ${today}. Resolve relative dates (e.g. "Friday") to YYYY-MM-DD.
 - If the request is ambiguous or you can't map it to the actions, return an empty actions array and ask for clarification in "reply".
 - "reply" must clearly state, in plain English, exactly what you will do (names, counts) so the user can confirm.
+- A document may be attached. If so, read it and use it to fulfil the request (e.g. extract suggested tasks). If the user only asks for suggestions, list them in "reply" and propose the matching actions (create_project or add_tasks) for them to confirm; if no target project is clear, ask which project in "reply" with an empty actions array.
 - Output ONLY a JSON object: {"reply": string, "actions": Action[]}. No text outside the JSON.`;
 
   const userContent = `CONTEXT
@@ -61,7 +74,7 @@ ${message}`;
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1500,
         system,
-        messages: [{ role: 'user', content: userContent }],
+        messages: [{ role: 'user', content: mediaBlock ? [mediaBlock, { type: 'text', text: userContent }] : userContent }],
       }),
     });
   } catch {

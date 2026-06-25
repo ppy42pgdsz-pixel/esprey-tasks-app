@@ -28,21 +28,26 @@ function toBase64(buf: ArrayBuffer): string {
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;     // 10 MB upload cap
 const SUMMARY_MAX_BYTES = 5 * 1024 * 1024;            // only auto-summarize up to 5 MB
 
+/** Build a Claude content block for a file (image / PDF / text). null if unsupported. */
+export function buildMediaBlock(mime: string, filename: string, buf: ArrayBuffer, textLimit = 8000): unknown | null {
+  const lower = (mime || '').toLowerCase();
+  if (lower.startsWith('image/')) {
+    return { type: 'image', source: { type: 'base64', media_type: lower, data: toBase64(buf) } };
+  }
+  if (lower === 'application/pdf') {
+    return { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toBase64(buf) } };
+  }
+  if (lower.startsWith('text/') || lower === 'application/json') {
+    return { type: 'text', text: `File "${filename}" contents:\n\n${new TextDecoder().decode(buf).slice(0, textLimit)}` };
+  }
+  return null;
+}
+
 /** 1–2 sentence Claude description. Returns null for unsupported types or any error. */
 export async function summarizeFile(apiKey: string, mime: string, filename: string, buf: ArrayBuffer): Promise<string | null> {
   if (buf.byteLength > SUMMARY_MAX_BYTES) return null;
-  const lower = (mime || '').toLowerCase();
-  let media: unknown;
-  if (lower.startsWith('image/')) {
-    media = { type: 'image', source: { type: 'base64', media_type: lower, data: toBase64(buf) } };
-  } else if (lower === 'application/pdf') {
-    media = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toBase64(buf) } };
-  } else if (lower.startsWith('text/') || lower === 'application/json') {
-    const text = new TextDecoder().decode(buf).slice(0, 8000);
-    media = { type: 'text', text: `File "${filename}" contents:\n\n${text}` };
-  } else {
-    return null;
-  }
+  const media = buildMediaBlock(mime, filename, buf);
+  if (!media) return null;
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

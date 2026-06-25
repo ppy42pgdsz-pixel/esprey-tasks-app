@@ -886,6 +886,16 @@ body {
   padding: 8px 10px; font: inherit; font-size: 13.5px; color: #1c1917;
 }
 .ai-input textarea::placeholder { color: #a8a29e; }
+.ai-input-wrap { position: relative; border-top: 1px solid #f0eeec; }
+.ai-input-wrap .ai-input { border-top: none; }
+.ai-attach-btn { background: none; border: none; cursor: pointer; font-size: 18px; padding: 4px 2px; align-self: center; }
+.ai-doc-chip { display: inline-flex; align-items: center; gap: 6px; margin: 8px 12px 0; font-size: 12px; background: #eef2ff; color: #4338ca; padding: 4px 8px; border-radius: 8px; max-width: calc(100% - 24px); }
+.ai-doc-chip button { background: none; border: none; color: #4338ca; cursor: pointer; font-size: 14px; line-height: 1; }
+.ai-attach-menu { position: absolute; bottom: calc(100% + 6px); left: 12px; width: 280px; max-height: 280px; overflow-y: auto; background: #fff; border: 1px solid #e7e5e4; border-radius: 10px; box-shadow: 0 8px 28px rgba(28,25,23,0.2); padding: 8px; z-index: 5; }
+.ai-attach-opt { display: block; font-size: 13px; color: #4f46e5; cursor: pointer; padding: 6px 4px; }
+.ai-attach-lib-head { font-size: 11px; font-weight: 600; color: #a8a29e; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 4px 4px; border-top: 1px solid #f0eeec; }
+.ai-lib-item { display: block; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; color: #1c1917; padding: 6px 4px; border-radius: 6px; }
+.ai-lib-item:hover { background: #f5f4f2; }
 
 /* ─── Responsive ─── */
 @media (max-width: 700px) {

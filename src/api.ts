@@ -31,8 +31,8 @@ export const api = {
   extractTasks: (text: string) =>
     request<{ tasks: string[] }>('/api/ai/extract-tasks', { method: 'POST', body: JSON.stringify({ text }) }),
 
-  assistantPlan: (message: string) =>
-    request<{ reply: string; actions: unknown[] }>('/api/assistant/plan', { method: 'POST', body: JSON.stringify({ message }) }),
+  assistantPlan: (message: string, libraryFileId?: string) =>
+    request<{ reply: string; actions: unknown[] }>('/api/assistant/plan', { method: 'POST', body: JSON.stringify(libraryFileId ? { message, library_file_id: libraryFileId } : { message }) }),
   assistantExecute: (actions: unknown[]) =>
     request<{ ok: boolean; results: string[] }>('/api/assistant/execute', { method: 'POST', body: JSON.stringify({ actions }) }),
 
