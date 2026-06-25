@@ -10,6 +10,7 @@ const MODEL = 'claude-haiku-4-5-20251001';
 const AI_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 export interface ParsedTask {
+  intent: 'library' | 'tasks';
   title: string;
   description: string;
   priority: 'low' | 'normal' | 'high';
@@ -28,26 +29,35 @@ type ContentBlock =
 
 export async function extractTask(
   apiKey: string,
-  input: { subject: string; body: string; attachments?: AiAttachment[] },
+  input: { subject: string; body: string; instruction?: string; attachments?: AiAttachment[] },
 ): Promise<ParsedTask> {
   const hasAttachments = (input.attachments ?? []).some(
     (a) => a.mime.toLowerCase() === 'application/pdf' || AI_IMAGE_TYPES.includes(a.mime.toLowerCase()),
   );
 
-  const prompt = `You are parsing a forwarded email${hasAttachments ? ' and its attachments' : ''} into a structured task for a personal task management system.
+  const prompt = `You are processing a forwarded email for a personal task system.
+
+FIRST decide what the forwarder wants, based ONLY on the note they wrote at the top (their instruction) — NOT the quoted email content below it:
+- intent = "library": the forwarder explicitly asks to SAVE / FILE / ARCHIVE this — e.g. "add this to my library", "save this as a PDF", "file this for my records", "keep this".
+- intent = "tasks": ANYTHING ELSE. This is the DEFAULT whenever there is no clear save/file instruction.
+
+Forwarder's instruction (decide intent from THIS only):
+${(input.instruction ?? input.body).slice(0, 1500)}
 
 Email subject: ${input.subject}
 Email body:
 ${input.body.slice(0, 4000)}
 ${hasAttachments ? '\nThe attached files (images/PDFs) are part of the same email — read them and factor their contents into the task.' : ''}
 
-Extract a task. Return ONLY a single JSON object, nothing before or after it, with these fields:
+Return ONLY a single JSON object, nothing before or after it, with these fields:
 {
+  "intent": "library|tasks",
   "title": "Short, action-oriented task title (max 100 chars)",
   "description": "Brief summary of what needs to be done or followed up on, incorporating anything relevant from the attachments (max 300 chars)",
   "priority": "low|normal|high",
   "subtasks": ["distinct action item", "another action item"]
 }
+(If intent is "library", still fill the other fields — they will be ignored.)
 
 Subtasks rule:
 - If the email contains MULTIPLE distinct things to follow up on or do, list each as a short action-oriented string in "subtasks" (max ~12 words each).
@@ -121,6 +131,7 @@ export function parseTaskJson(text: string): ParsedTask {
     : [];
 
   return {
+    intent: obj.intent === 'library' ? 'library' : 'tasks',
     title: String(obj.title ?? '').trim().slice(0, 100),
     description: String(obj.description ?? '').trim().slice(0, 500),
     priority,

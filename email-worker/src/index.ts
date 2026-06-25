@@ -347,11 +347,6 @@ async function generateRecurring(env: Env): Promise<number> {
   return made;
 }
 
-/** True if the forwarder's note explicitly asks to file this into the library. */
-function isLibraryIntent(note: string): boolean {
-  return /\blibrar(y|ies)\b/i.test((note || '').slice(0, 600));
-}
-
 /** 1–2 sentence Claude summary of a file (worker-side). null if unsupported. */
 async function summarizeForLibrary(apiKey: string, mime: string, filename: string, bytes: Uint8Array): Promise<string | null> {
   if (bytes.length > 5 * 1024 * 1024) return null;
@@ -504,29 +499,31 @@ export default {
     // Who forwarded it (alias-aware) — owns the resulting task or library files.
     const ownerEmail = await resolveOwner(env.DB, message.from, env.ADMIN_EMAIL);
 
-    // Forward-to-library: an explicit "…to the library" note files the email
-    // (rendered to PDF) plus its attachments into the library, with no task.
-    if (isLibraryIntent(outerBody)) {
-      await handleLibraryEmail(env, ownerEmail, subject, parsed.html ?? null, combinedBody, toStore);
-      return;
-    }
-
-    // Extract the task with Claude (fall back to subject/body on failure).
+    // Claude reads the email and decides — from the forwarder's note — whether
+    // to file it into the library or extract tasks (falls back to tasks).
     let task: ParsedTask;
     try {
       task = await extractTask(env.ANTHROPIC_API_KEY, {
         subject,
         body: combinedBody,
+        instruction: outerBody,
         attachments: aiAttachments,
       });
     } catch (err) {
       task = {
+        intent: 'tasks',
         title: subject.slice(0, 100),
         description: combinedBody.slice(0, 500),
         priority: 'normal',
         subtasks: [],
       };
       console.error('Claude extraction failed, using fallback:', err);
+    }
+
+    // "Library" intent → file the email (rendered to PDF) + attachments, no task.
+    if (task.intent === 'library') {
+      await handleLibraryEmail(env, ownerEmail, subject, parsed.html ?? null, combinedBody, toStore);
+      return;
     }
 
     const now = Date.now();
