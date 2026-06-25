@@ -3,7 +3,7 @@
  * attachments (images / PDFs) and returns a structured task.
  */
 
-const MODEL = 'claude-haiku-4-5-20251001';
+const MODEL = 'claude-sonnet-4-6';
 
 // Image media types Anthropic vision accepts. Others (e.g. HEIC) are stored
 // but not sent to the model.
