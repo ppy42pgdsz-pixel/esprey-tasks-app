@@ -11,7 +11,7 @@
  */
 
 import PostalMime from 'postal-mime';
-import { extractTask, type AiAttachment, type ParsedTask } from './anthropic';
+import { planEmail, type AiAttachment, type EmailPlan } from './anthropic';
 import { toUint8, uint8ToBase64, extFromMime, nanoid, r2KeyForAttachment, wrapEmailHtml, textToHtml, sanitizeFilename } from './util';
 import { htmlToPdf } from './pdfshift';
 
@@ -368,50 +368,94 @@ async function summarizeForLibrary(apiKey: string, mime: string, filename: strin
   } catch { return null; }
 }
 
-/** Store a file in a user's library (R2 + DB row), starting its orphan clock. */
-async function storeLibraryFile(env: Env, ownerEmail: string, bytes: Uint8Array, mime: string, filename: string, summary: string | null): Promise<void> {
+interface StoredLibraryFile { id: string; key: string; filename: string; mime: string; size: number; summary: string | null }
+
+/**
+ * Store a file in a user's library (R2 + DB row). `orphaned` controls the
+ * 30-day deletion clock: pass true for library-only files (clock running),
+ * false when the file is about to be referenced by a project (kept while
+ * attached). Returns the row so callers can reference it from a project.
+ */
+async function storeLibraryFile(
+  env: Env, ownerEmail: string, bytes: Uint8Array, mime: string, filename: string, summary: string | null, orphaned: boolean,
+): Promise<StoredLibraryFile> {
   const id = nanoid();
   const key = `library/${ownerEmail}/${id}`;
   await env.ATTACHMENTS.put(key, bytes, { httpMetadata: { contentType: mime } });
   const now = Date.now();
   await env.DB.prepare(
     'INSERT INTO library_files (id, user_email, r2_key, filename, mime_type, size, summary, created_at, orphaned_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  ).bind(id, ownerEmail, key, filename, mime, bytes.length, summary, now, now).run();
+  ).bind(id, ownerEmail, key, filename, mime, bytes.length, summary, now, orphaned ? now : null).run();
+  return { id, key, filename, mime, size: bytes.length, summary };
 }
 
-/** Forward-to-library: render the email to a PDF and store it + its attachments. */
-async function handleLibraryEmail(
-  env: Env,
-  ownerEmail: string,
-  subject: string,
-  bodyHtml: string | null,
-  bodyText: string,
-  toStore: { bytes: Uint8Array; mime: string; filename: string }[],
+/** Attach an existing library file to a project (reference, no copy). */
+async function attachLibraryToProject(env: Env, projectId: string, lib: StoredLibraryFile): Promise<void> {
+  await env.DB.prepare(
+    'INSERT INTO task_attachments (id, task_id, subtask_id, r2_key, filename, mime_type, size, summary, created_at, library_file_id) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind(nanoid(), projectId, lib.key, lib.filename, lib.mime, lib.size, lib.summary, Date.now(), lib.id).run();
+}
+
+/** Store an email attachment directly on a project (no library reference). */
+async function storeDirectProjectAttachment(
+  env: Env, projectId: string, file: { id: string; bytes: Uint8Array; mime: string; filename: string; ext: string },
 ): Promise<void> {
-  // Render the email body itself to a PDF (needs PDFShift configured).
-  if (env.PDFSHIFT_API_KEY) {
-    try {
-      const inner = bodyHtml && bodyHtml.trim() ? bodyHtml : textToHtml(bodyText);
-      const pdf = await htmlToPdf({ apiKey: env.PDFSHIFT_API_KEY, html: wrapEmailHtml(subject, inner) });
-      const fname = `${sanitizeFilename(subject)}.pdf`;
-      const summary = await summarizeForLibrary(env.ANTHROPIC_API_KEY, 'application/pdf', fname, pdf);
-      await storeLibraryFile(env, ownerEmail, pdf, 'application/pdf', fname, summary);
-    } catch (e) {
-      console.error('email->PDF render failed', e);
-    }
-  } else {
-    console.log('PDFSHIFT_API_KEY not set — skipping email-body PDF render');
+  const key = r2KeyForAttachment(file.id, file.ext);
+  await env.ATTACHMENTS.put(key, file.bytes, {
+    httpMetadata: { contentType: file.mime },
+    customMetadata: { taskId: projectId, filename: file.filename },
+  });
+  await env.DB.prepare(
+    'INSERT INTO task_attachments (id, task_id, r2_key, filename, mime_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).bind(file.id, projectId, key, file.filename, file.mime, file.bytes.length, Date.now()).run();
+}
+
+/** Render the email body to a PDF and file it in the library. */
+async function fileEmailAsPdf(env: Env, ownerEmail: string, subject: string, bodyHtml: string | null, bodyText: string): Promise<boolean> {
+  if (!env.PDFSHIFT_API_KEY) { console.log('PDFSHIFT_API_KEY not set — skipping email-body PDF render'); return false; }
+  try {
+    const inner = bodyHtml && bodyHtml.trim() ? bodyHtml : textToHtml(bodyText);
+    const pdf = await htmlToPdf({ apiKey: env.PDFSHIFT_API_KEY, html: wrapEmailHtml(subject, inner) });
+    const fname = `${sanitizeFilename(subject)}.pdf`;
+    const summary = await summarizeForLibrary(env.ANTHROPIC_API_KEY, 'application/pdf', fname, pdf);
+    await storeLibraryFile(env, ownerEmail, pdf, 'application/pdf', fname, summary, true);
+    return true;
+  } catch (e) {
+    console.error('email->PDF render failed', e);
+    return false;
   }
-  // Store the email's attachments in the library too.
-  for (const s of toStore) {
-    try {
-      const summary = await summarizeForLibrary(env.ANTHROPIC_API_KEY, s.mime, s.filename, s.bytes);
-      await storeLibraryFile(env, ownerEmail, s.bytes, s.mime, s.filename, summary);
-    } catch (e) {
-      console.error('library attachment store failed', s.filename, e);
-    }
-  }
-  console.log(`Filed email to library for ${ownerEmail}: PDF + ${toStore.length} attachment(s)`);
+}
+
+/** Find an active project by exact (case-insensitive) title, or null. */
+async function findProjectByName(env: Env, ownerEmail: string, name: string): Promise<string | null> {
+  const r = await env.DB.prepare(
+    "SELECT id FROM tasks WHERE owner_email = ? AND LOWER(title) = LOWER(?) AND status != 'done' AND completed_at IS NULL ORDER BY created_at DESC LIMIT 1",
+  ).bind(ownerEmail, name).first<{ id: string }>();
+  return r?.id ?? null;
+}
+
+/** Next subtask position within a project (so appends land at the end). */
+async function nextSubtaskPosition(env: Env, projectId: string): Promise<number> {
+  const r = await env.DB.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM subtasks WHERE task_id = ?').bind(projectId).first<{ next: number }>();
+  return r?.next ?? 0;
+}
+
+/** Send the forwarder a short summary of what the worker did. No-op without Resend. */
+async function sendConfirmation(env: Env, to: string, subject: string, lines: string[]): Promise<void> {
+  if (!env.RESEND_API_KEY || !lines.length) return;
+  const appUrl = `https://${env.APP_DOMAIN ?? 'tasks.esprey.net'}`;
+  const text = [`Done. Here's what I did with "${subject}":`, '', ...lines.map((l) => `• ${l}`), '', `Open the app: ${appUrl}`].join('\n');
+  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#1c1917;line-height:1.55;">`
+    + `<p>Done. Here's what I did with <strong>${esc(subject)}</strong>:</p>`
+    + `<ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`
+    + `<p><a href="${appUrl}">Open Esprey Tasks</a></p></div>`;
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'Esprey Tasks <tasks@esprey.net>', to: [to], reply_to: env.ADMIN_EMAIL, subject: `Re: ${subject}`, text, html }),
+    });
+  } catch (e) { console.error('confirmation send failed', e); }
 }
 
 export default {
@@ -499,106 +543,115 @@ export default {
     // Who forwarded it (alias-aware) — owns the resulting task or library files.
     const ownerEmail = await resolveOwner(env.DB, message.from, env.ADMIN_EMAIL);
 
-    // Claude reads the email and decides — from the forwarder's note — whether
-    // to file it into the library or extract tasks (falls back to tasks).
-    let task: ParsedTask;
+    // Claude reads the email + attachments and returns a multi-action plan:
+    // which project to create/append to, what tasks to extract, and where the
+    // attachments go (library and/or project), plus whether to file the email.
+    let plan: EmailPlan;
     try {
-      task = await extractTask(env.ANTHROPIC_API_KEY, {
+      plan = await planEmail(env.ANTHROPIC_API_KEY, {
         subject,
         body: combinedBody,
         instruction: outerBody,
         attachments: aiAttachments,
+        hasFiles: toStore.length > 0,
       });
     } catch (err) {
-      task = {
-        intent: 'tasks',
-        title: subject.slice(0, 100),
-        description: combinedBody.slice(0, 500),
+      // Fallback: behave like the old email-to-task flow (a project + its files).
+      plan = {
+        project: { name: subject.slice(0, 100) || '(no subject)', match_existing: false },
         priority: 'normal',
-        subtasks: [],
+        description: combinedBody.slice(0, 500),
+        tasks: [],
+        attachments: { to_library: false, to_project: toStore.length > 0 },
+        file_email_as_pdf: false,
       };
-      console.error('Claude extraction failed, using fallback:', err);
-    }
-
-    // "Library" intent → file the email (rendered to PDF) + attachments, no task.
-    if (task.intent === 'library') {
-      await handleLibraryEmail(env, ownerEmail, subject, parsed.html ?? null, combinedBody, toStore);
-      return;
+      console.error('Claude planning failed, using fallback:', err);
     }
 
     const now = Date.now();
-    const id = nanoid();
+    const summaryLines: string[] = [];
 
-    await env.DB.prepare(
-      `INSERT INTO tasks (
-        id, title, description, status, priority, source, owner_email,
-        from_email, from_name, original_subject, original_body,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, 'todo', ?, 'email', ?, ?, ?, ?, ?, ?, ?)`,
-    )
-      .bind(
-        id,
-        task.title,
-        task.description,
-        task.priority,
-        ownerEmail,
-        fromEmail,
-        fromName,
-        subject,
-        combinedBody.slice(0, 10000),
-        now,
-        now,
-      )
-      .run();
+    // Does the plan call for a project? Pure filing (just save to library / file
+    // the email as a PDF, no tasks, nothing attached to a project) creates none.
+    const wantsProjectContent = plan.tasks.length > 0 || plan.attachments.to_project;
+    const isPureFiling = !wantsProjectContent && (plan.file_email_as_pdf || plan.attachments.to_library);
+    const projectName = plan.project.name ?? (wantsProjectContent ? (subject.slice(0, 100) || '(no subject)') : null);
+    const needProject = !!projectName && !isPureFiling;
 
-    // Activity timeline: record that this task came in from an email.
-    try {
-      await env.DB.prepare(
-        'INSERT INTO task_events (id, task_id, actor_email, type, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      ).bind(nanoid(), id, ownerEmail, 'created', `Created from email: ${subject.slice(0, 120)}`, now).run();
-    } catch (e) {
-      console.error('failed to log create event:', e);
+    // ─── Resolve or create the project ───
+    let projectId: string | null = null;
+    if (needProject && projectName) {
+      if (plan.project.match_existing) projectId = await findProjectByName(env, ownerEmail, projectName);
+      if (projectId) {
+        summaryLines.push(`Added to existing project "${projectName}".`);
+      } else {
+        projectId = nanoid();
+        await env.DB.prepare(
+          `INSERT INTO tasks (
+            id, title, description, status, priority, source, owner_email,
+            from_email, from_name, original_subject, original_body,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, 'todo', ?, 'email', ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(projectId, projectName, plan.description, plan.priority, ownerEmail, fromEmail, fromName, subject, combinedBody.slice(0, 10000), now, now).run();
+        try {
+          await env.DB.prepare(
+            'INSERT INTO task_events (id, task_id, actor_email, type, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+          ).bind(nanoid(), projectId, ownerEmail, 'created', `Created from email: ${subject.slice(0, 120)}`, now).run();
+        } catch (e) { console.error('failed to log create event:', e); }
+        summaryLines.push(`Created project "${projectName}".`);
+      }
     }
 
-    // Insert any subtasks Claude extracted.
-    if (task.subtasks.length > 0) {
+    // ─── Add extracted tasks to the project ───
+    if (projectId && plan.tasks.length > 0) {
       try {
+        let pos = await nextSubtaskPosition(env, projectId);
+        const pid = projectId;
         await env.DB.batch(
-          task.subtasks.map((text, i) =>
+          plan.tasks.map((text) =>
             env.DB.prepare(
-              `INSERT INTO subtasks (id, task_id, text, done, position, created_at)
-               VALUES (?, ?, ?, 0, ?, ?)`,
-            ).bind(nanoid(), id, text.slice(0, 300), i, now),
+              `INSERT INTO subtasks (id, task_id, text, done, position, created_at) VALUES (?, ?, ?, 0, ?, ?)`,
+            ).bind(nanoid(), pid, text.slice(0, 300), pos++, now),
           ),
         );
-      } catch (e) {
-        console.error('failed to insert subtasks:', e);
-      }
+        summaryLines.push(`Added ${plan.tasks.length} task${plan.tasks.length === 1 ? '' : 's'}.`);
+      } catch (e) { console.error('failed to insert subtasks:', e); }
     }
 
-    // Persist the original attachments to R2 + record them, isolated per-file.
-    let storedCount = 0;
+    // ─── File the email body itself as a PDF (only when asked) ───
+    if (plan.file_email_as_pdf) {
+      const ok = await fileEmailAsPdf(env, ownerEmail, subject, parsed.html ?? null, combinedBody);
+      if (ok) summaryLines.push('Filed the email as a PDF in your library.');
+    }
+
+    // ─── Route the email's file attachments ───
+    let toLibraryCount = 0;
+    let toProjectCount = 0;
     for (const s of toStore) {
       try {
-        const key = r2KeyForAttachment(s.id, s.ext);
-        await env.ATTACHMENTS.put(key, s.bytes, {
-          httpMetadata: { contentType: s.mime },
-          customMetadata: { taskId: id, filename: s.filename },
-        });
-        await env.DB.prepare(
-          `INSERT INTO task_attachments (id, task_id, r2_key, filename, mime_type, size, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-          .bind(s.id, id, key, s.filename, s.mime, s.bytes.length, now)
-          .run();
-        storedCount++;
-      } catch (e) {
-        console.error('failed to store attachment', s.filename, e);
-      }
+        if (plan.attachments.to_library) {
+          // Store in the library once. If it also goes on the project, keep it
+          // (not orphaned) and reference the same object from the project.
+          const keepForProject = plan.attachments.to_project && !!projectId;
+          const summary = await summarizeForLibrary(env.ANTHROPIC_API_KEY, s.mime, s.filename, s.bytes);
+          const lib = await storeLibraryFile(env, ownerEmail, s.bytes, s.mime, s.filename, summary, !keepForProject);
+          toLibraryCount++;
+          if (keepForProject && projectId) { await attachLibraryToProject(env, projectId, lib); toProjectCount++; }
+        } else if (plan.attachments.to_project && projectId) {
+          await storeDirectProjectAttachment(env, projectId, s);
+          toProjectCount++;
+        }
+      } catch (e) { console.error('failed to route attachment', s.filename, e); }
     }
+    if (toLibraryCount) summaryLines.push(`Saved ${toLibraryCount} attachment${toLibraryCount === 1 ? '' : 's'} to your library.`);
+    if (toProjectCount) summaryLines.push(`Attached ${toProjectCount} file${toProjectCount === 1 ? '' : 's'} to the project.`);
+
+    // ─── Confirm back to the forwarder ───
+    if (!summaryLines.length) summaryLines.push('Nothing actionable was found, so no changes were made.');
+    await sendConfirmation(env, ownerEmail, subject, summaryLines);
 
     console.log(
-      `Task created from email: id=${id} title="${task.title}" from=${fromEmail} attachments=${storedCount}`,
+      `Email processed for ${ownerEmail}: project=${projectId ?? 'none'} tasks=${plan.tasks.length} lib=${toLibraryCount} proj=${toProjectCount} pdf=${plan.file_email_as_pdf}`,
     );
   },
 } satisfies ExportedHandler<Env>;

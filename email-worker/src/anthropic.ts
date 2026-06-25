@@ -1,6 +1,9 @@
 /**
- * Claude task extraction. Takes the email subject + body and any visual
- * attachments (images / PDFs) and returns a structured task.
+ * Claude email planner. Reads the forwarded email (the forwarder's note, the
+ * quoted message, and any image/PDF attachments) and returns a MULTI-ACTION
+ * plan: which project to create or add to, what tasks to extract, and where the
+ * attachments should go (library and/or the project), plus whether to file the
+ * email itself as a PDF. The worker validates and executes the plan.
  */
 
 const MODEL = 'claude-sonnet-4-6';
@@ -9,12 +12,17 @@ const MODEL = 'claude-sonnet-4-6';
 // but not sent to the model.
 const AI_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-export interface ParsedTask {
-  intent: 'library' | 'tasks';
-  title: string;
-  description: string;
+export interface EmailPlan {
+  /** Target project. name=null means "no project" (pure library filing). */
+  project: { name: string | null; match_existing: boolean };
   priority: 'low' | 'normal' | 'high';
-  subtasks: string[];
+  /** Description used only when a NEW project is created. */
+  description: string;
+  /** Task items (subtasks) to add to the project. */
+  tasks: string[];
+  attachments: { to_library: boolean; to_project: boolean };
+  /** Render the email body itself to a PDF and file it in the library. */
+  file_email_as_pdf: boolean;
 }
 
 export interface AiAttachment {
@@ -27,53 +35,63 @@ type ContentBlock =
   | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
   | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string } };
 
-export async function extractTask(
+export async function planEmail(
   apiKey: string,
-  input: { subject: string; body: string; instruction?: string; attachments?: AiAttachment[] },
-): Promise<ParsedTask> {
+  input: { subject: string; body: string; instruction?: string; attachments?: AiAttachment[]; hasFiles?: boolean },
+): Promise<EmailPlan> {
   const hasAttachments = (input.attachments ?? []).some(
     (a) => a.mime.toLowerCase() === 'application/pdf' || AI_IMAGE_TYPES.includes(a.mime.toLowerCase()),
   );
+  const hasFiles = input.hasFiles ?? hasAttachments;
 
-  const prompt = `You are processing a forwarded email for a personal task system.
+  const prompt = `You are processing a forwarded email for a personal task & document system.
+The system has PROJECTS (each holds a list of TASKS) and a LIBRARY (a private file store).
+A forwarded email may have FILE ATTACHMENTS (the real attached files).
 
-FIRST decide what the forwarder wants, based ONLY on the note they wrote at the top (their instruction) — NOT the quoted email content below it:
-- intent = "library": the forwarder explicitly asks to SAVE / FILE / ARCHIVE this — e.g. "add this to my library", "save this as a PDF", "file this for my records", "keep this".
-- intent = "tasks": ANYTHING ELSE. This is the DEFAULT whenever there is no clear save/file instruction.
+Read the forwarder's instruction (the note they wrote at the top) and decide a PLAN that may do SEVERAL things at once.
 
-Forwarder's instruction (decide intent from THIS only):
-${(input.instruction ?? input.body).slice(0, 1500)}
+Forwarder's instruction (their note — the primary signal for what to do):
+${(input.instruction ?? input.body).slice(0, 2000)}
 
 Email subject: ${input.subject}
 Email body:
-${input.body.slice(0, 4000)}
-${hasAttachments ? '\nThe attached files (images/PDFs) are part of the same email — read them and factor their contents into the task.' : ''}
+${input.body.slice(0, 6000)}
+This email ${hasFiles ? 'HAS' : 'has NO'} file attachment(s).${hasAttachments ? ' The attached files (images/PDFs) are included below — read them.' : ''}
 
-Return ONLY a single JSON object, nothing before or after it, with these fields:
+Decide each field:
+
+PROJECT
+- "project": where extracted tasks and/or project-bound attachments go.
+  - "name": the project name. If the instruction names a project ("a project called Life Insurance", "add to my Tax project"), use that exact name. If the forwarder just wants tasks made with no named project, invent a short descriptive project title. Use null ONLY when the email is purely "save/file this to my library" with no tasks and nothing to attach to a project.
+  - "match_existing": true if the forwarder referred to a project by name (so we should add to an existing one if it exists). false if you invented the title for a plain forward.
+
+TASKS
+- "tasks": the action items to add to the project, each a short imperative string (max ~14 words). If the email lists requested documents, requirements, or multiple follow-ups, make EACH one a task. If there is nothing actionable (pure filing), return [].
+
+ATTACHMENTS (only meaningful if the email has files)
+- "attachments.to_library": true if the forwarder wants the attached file(s) saved/filed/kept in their library.
+- "attachments.to_project": true if the attached file(s) should be attached to the project. For a normal task email with files, default this to true so the files stay with the project. Both can be true ("add to my library AND to the project").
+
+EMAIL-AS-PDF
+- "file_email_as_pdf": true ONLY if the forwarder wants the EMAIL ITSELF saved/archived as a record (e.g. "save this email", "file this for my records", "keep this"). false otherwise (e.g. they only mentioned saving an attachment, or it's a normal task email).
+
+PRIORITY: high (urgent/time-sensitive), normal (standard), low (FYI).
+DESCRIPTION: one line summarising the project, used only if a new project is created (max 300 chars).
+
+Return ONLY a single JSON object, nothing before or after it:
 {
-  "intent": "library|tasks",
-  "title": "Short, action-oriented task title (max 100 chars)",
-  "description": "Brief summary of what needs to be done or followed up on, incorporating anything relevant from the attachments (max 300 chars)",
+  "project": { "name": "string or null", "match_existing": true },
   "priority": "low|normal|high",
-  "subtasks": ["distinct action item", "another action item"]
+  "description": "short summary",
+  "tasks": ["task one", "task two"],
+  "attachments": { "to_library": false, "to_project": true },
+  "file_email_as_pdf": false
 }
-(If intent is "library", still fill the other fields — they will be ignored.)
 
-Subtasks rule:
-- If the email contains MULTIPLE distinct things to follow up on or do, list each as a short action-oriented string in "subtasks" (max ~12 words each).
-- If there is only ONE thing to do, return an empty array: "subtasks": [].
-- The title should summarise the overall task; the subtasks are the individual steps.
-
-Formatting rules (important):
+Rules:
 - Output ONLY the JSON object — no markdown, no code fences, no commentary.
 - Keep every value on a single line. Do NOT put line breaks inside any string.
-- Keep the description under 300 characters so the JSON is never truncated.
-- Use straight quotes and escape any quotes inside a value.
-
-Priority guide:
-- high: urgent, time-sensitive, or explicitly marked as important
-- normal: standard follow-up or action required
-- low: FYI, informational, or no clear deadline`;
+- Use straight quotes and escape any quotes inside a value.`;
 
   const content: ContentBlock[] = [{ type: 'text', text: prompt }];
   for (const att of input.attachments ?? []) {
@@ -94,7 +112,7 @@ Priority guide:
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 1500,
       messages: [{ role: 'user', content }],
     }),
   });
@@ -105,36 +123,45 @@ Priority guide:
 
   const result = await response.json<{ content: Array<{ type: string; text: string }> }>();
   const text = result.content.find((c) => c.type === 'text')?.text ?? '{}';
-  return parseTaskJson(text);
+  return parseEmailPlan(text, hasFiles);
 }
 
 /**
  * Tolerant parser for Claude's JSON reply. Strips markdown fences and any prose
- * around the object, isolates the outermost {...}, then validates the fields.
- * Throws if no usable JSON is found, so the caller can fall back.
+ * around the object, isolates the outermost {...}, then validates the fields,
+ * filling sensible defaults so the worker always gets a usable plan.
  */
-export function parseTaskJson(text: string): ParsedTask {
+export function parseEmailPlan(text: string, hasFiles: boolean): EmailPlan {
   let cleaned = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-
   const first = cleaned.indexOf('{');
   const last = cleaned.lastIndexOf('}');
-  if (first !== -1 && last > first) {
-    cleaned = cleaned.slice(first, last + 1);
-  }
+  if (first !== -1 && last > first) cleaned = cleaned.slice(first, last + 1);
 
-  const obj = JSON.parse(cleaned) as Partial<ParsedTask>;
-  const priority: ParsedTask['priority'] =
+  const obj = JSON.parse(cleaned) as any;
+
+  const priority: EmailPlan['priority'] =
     obj.priority === 'low' || obj.priority === 'high' ? obj.priority : 'normal';
 
-  const subtasks = Array.isArray(obj.subtasks)
-    ? obj.subtasks.map((s) => String(s).trim()).filter((s) => s.length > 0).slice(0, 20)
+  const rawName = obj?.project?.name;
+  const name = typeof rawName === 'string' && rawName.trim() ? rawName.trim().slice(0, 100) : null;
+
+  const tasks = Array.isArray(obj.tasks)
+    ? obj.tasks.map((s: unknown) => String(s).trim()).filter((s: string) => s.length > 0).slice(0, 40)
     : [];
 
+  // Default attachment routing: if files are present and Claude said nothing
+  // useful, keep them with the project (today's behaviour).
+  const aObj = obj.attachments ?? {};
+  let toLibrary = !!aObj.to_library;
+  let toProject = !!aObj.to_project;
+  if (hasFiles && !toLibrary && !toProject) toProject = true;
+
   return {
-    intent: obj.intent === 'library' ? 'library' : 'tasks',
-    title: String(obj.title ?? '').trim().slice(0, 100),
-    description: String(obj.description ?? '').trim().slice(0, 500),
+    project: { name, match_existing: !!obj?.project?.match_existing },
     priority,
-    subtasks,
+    description: String(obj.description ?? '').trim().slice(0, 500),
+    tasks,
+    attachments: { to_library: toLibrary, to_project: toProject },
+    file_email_as_pdf: !!obj.file_email_as_pdf,
   };
 }
