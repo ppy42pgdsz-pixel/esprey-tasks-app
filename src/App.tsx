@@ -7,6 +7,7 @@ import AddTaskForm from './components/AddTaskForm';
 import SettingsPanel from './components/SettingsPanel';
 import ReportsPanel from './components/ReportsPanel';
 import CompletedSubtasks from './components/CompletedSubtasks';
+import Assistant from './components/Assistant';
 import type { CompletedSubtask } from './types';
 import { notifSupported, notifPermission, requestNotifPermission, showNotifications, ensureServiceWorker, subscribeToPush } from './notifications';
 import './styles.css';
@@ -637,6 +638,8 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <Assistant onApplied={loadTasks} />
     </div>
   );
 }

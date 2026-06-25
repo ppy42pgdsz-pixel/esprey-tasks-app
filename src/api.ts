@@ -31,6 +31,11 @@ export const api = {
   extractTasks: (text: string) =>
     request<{ tasks: string[] }>('/api/ai/extract-tasks', { method: 'POST', body: JSON.stringify({ text }) }),
 
+  assistantPlan: (message: string) =>
+    request<{ reply: string; actions: unknown[] }>('/api/assistant/plan', { method: 'POST', body: JSON.stringify({ message }) }),
+  assistantExecute: (actions: unknown[]) =>
+    request<{ ok: boolean; results: string[] }>('/api/assistant/execute', { method: 'POST', body: JSON.stringify({ actions }) }),
+
   getReport: (company_id?: string) =>
     request<{ generated_at: number; projects: ReportProject[] }>(`/api/report${company_id ? `?company_id=${encodeURIComponent(company_id)}` : ''}`),
   emailReport: (company_id?: string) =>
