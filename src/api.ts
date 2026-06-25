@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, TaskEvent, SubtaskComment, AppNotification, CompletedSubtask, ReportProject, Subtask, User, UserRole } from './types';
+import type { Task, TaskStatus, TaskPriority, RecurUnit, Company, Contact, TaskAttachment, TaskEvent, SubtaskComment, AppNotification, CompletedSubtask, LibraryFile, ReportProject, Subtask, User, UserRole } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -93,6 +93,19 @@ export const api = {
   },
   deleteAttachment: (id: string) =>
     request<{ ok: boolean }>(`/api/attachments/${id}`, { method: 'DELETE' }),
+
+  listLibrary: () => request<LibraryFile[]>('/api/library'),
+  uploadToLibrary: async (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/library', { method: 'POST', body: fd });
+    if (!res.ok) { const e = await res.json<{ error: string }>().catch(() => ({ error: res.statusText })); throw new Error(e.error); }
+    return res.json<LibraryFile>();
+  },
+  deleteLibraryFile: (id: string) =>
+    request<{ ok: boolean }>(`/api/library/${id}`, { method: 'DELETE' }),
+  attachLibraryFile: (id: string, target: { task_id?: string; subtask_id?: string }) =>
+    request<TaskAttachment>(`/api/library/${id}/attach`, { method: 'POST', body: JSON.stringify(target) }),
 
   listCompanies: () => request<Company[]>('/api/companies'),
   createCompany: (name: string) =>

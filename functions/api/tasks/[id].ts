@@ -5,6 +5,7 @@
  */
 
 import { meFromCtx, canAccessTask, isTaskOwner, logEvent } from '../_lib';
+import { releaseLibraryRef } from '../_attachments';
 
 interface Env {
   DB: D1Database;
@@ -83,6 +84,8 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
   const me = await meFromCtx(ctx.env.DB, ctx);
   if (!(await isTaskOwner(ctx.env.DB, id, me))) return json({ error: 'Only the owner can delete this task' }, 403);
+  // Library files referenced by this project — release them after the delete.
+  const { results: libRefs } = await ctx.env.DB.prepare('SELECT DISTINCT library_file_id FROM task_attachments WHERE task_id = ? AND library_file_id IS NOT NULL').bind(id).all<{ library_file_id: string }>();
   // Owner delete: remove the task and its dependents.
   await ctx.env.DB.batch([
     ctx.env.DB.prepare('DELETE FROM subtask_comments WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)').bind(id),
@@ -93,5 +96,6 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
     ctx.env.DB.prepare('DELETE FROM notifications WHERE task_id = ?').bind(id),
     ctx.env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id),
   ]);
+  for (const r of libRefs) await releaseLibraryRef(ctx.env.DB, r.library_file_id);
   return json({ ok: true });
 };

@@ -71,14 +71,18 @@ async function purgeOldCompleted(env: Env): Promise<number> {
   if (!doomed.length) return 0;
 
   for (const { id } of doomed) {
-    // Purge R2 objects for this task's attachments first.
+    // Delete R2 objects for direct uploads only — library files own their object
+    // (the library cleanup handles those). Collect referenced library files to
+    // release after the task is gone.
     const { results: atts } = await env.DB
-      .prepare('SELECT r2_key FROM task_attachments WHERE task_id = ?')
+      .prepare('SELECT r2_key, library_file_id FROM task_attachments WHERE task_id = ?')
       .bind(id)
-      .all<{ r2_key: string }>();
+      .all<{ r2_key: string; library_file_id: string | null }>();
     for (const a of atts) {
+      if (a.library_file_id) continue;
       try { await env.ATTACHMENTS.delete(a.r2_key); } catch (e) { console.error('R2 delete failed', a.r2_key, e); }
     }
+    const libIds = Array.from(new Set(atts.map((a) => a.library_file_id).filter((x): x is string => !!x)));
     await env.DB.batch([
       env.DB.prepare('DELETE FROM subtask_assignees WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)').bind(id),
       env.DB.prepare('DELETE FROM subtask_contacts WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = ?)').bind(id),
@@ -90,8 +94,31 @@ async function purgeOldCompleted(env: Env): Promise<number> {
       env.DB.prepare('DELETE FROM notifications WHERE task_id = ?').bind(id),
       env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id),
     ]);
+    // Any library file no longer referenced starts its 30-day orphan clock.
+    for (const libId of libIds) {
+      const used = await env.DB.prepare('SELECT 1 FROM task_attachments WHERE library_file_id = ? LIMIT 1').bind(libId).first();
+      if (!used) await env.DB.prepare('UPDATE library_files SET orphaned_at = ? WHERE id = ? AND orphaned_at IS NULL').bind(Date.now(), libId).run();
+    }
   }
   return doomed.length;
+}
+
+/**
+ * Delete library files that have been unattached for more than 30 days (never
+ * attached, manually detached, or whose last task was removed). Removes the R2
+ * object and the row.
+ */
+async function deleteOrphanedLibraryFiles(env: Env): Promise<number> {
+  const cutoff = Date.now() - COMPLETED_RETENTION_MS;
+  const { results } = await env.DB
+    .prepare('SELECT id, r2_key FROM library_files WHERE orphaned_at IS NOT NULL AND orphaned_at < ?')
+    .bind(cutoff)
+    .all<{ id: string; r2_key: string }>();
+  for (const f of results) {
+    try { await env.ATTACHMENTS.delete(f.r2_key); } catch (e) { console.error('library R2 delete failed', f.r2_key, e); }
+    await env.DB.prepare('DELETE FROM library_files WHERE id = ?').bind(f.id).run();
+  }
+  return results.length;
 }
 
 const DUE_SOON_MS = 3 * 24 * 60 * 60 * 1000; // "due soon" = within 3 days (or overdue)
@@ -331,6 +358,8 @@ export default {
       console.log(`Recurring tasks: generated ${g} new occurrence(s)`);
       const n = await purgeOldCompleted(env);
       console.log(`Scheduled cleanup: removed ${n} completed task(s) older than 1 month`);
+      const lib = await deleteOrphanedLibraryFiles(env);
+      console.log(`Library cleanup: removed ${lib} unattached file(s) older than 1 month`);
     }
   },
 

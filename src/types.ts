@@ -145,6 +145,15 @@ export interface TaskEvent {
   created_at: number;
 }
 
+export interface LibraryFile {
+  id: string;
+  filename: string | null;
+  mime_type: string | null;
+  size: number | null;
+  summary?: string | null;
+  created_at: number;
+}
+
 export interface TaskAttachment {
   id: string;
   task_id: string;

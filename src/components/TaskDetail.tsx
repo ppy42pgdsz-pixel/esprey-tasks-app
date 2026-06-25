@@ -3,6 +3,7 @@ import type { Task, TaskStatus, Company, TaskAttachment, TaskEvent, Subtask, Use
 import { api } from '../api';
 import { downloadFile } from '../download';
 import SubtaskComments from './SubtaskComments';
+import LibraryPicker from './LibraryPicker';
 
 const EVENT_ICON: Record<string, string> = {
   created: '✨', completed: '✅', reopened: '↩️', subtask_added: '➕',
@@ -476,15 +477,18 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
             </div>
           ))}
           {isOwner ? (
-            <label className="attach-btn">
-              {uploadingTask ? 'Uploading…' : '+ Attach file'}
-              <input
-                type="file"
-                hidden
-                disabled={uploadingTask}
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadTaskFile(f); e.target.value = ''; }}
-              />
-            </label>
+            <>
+              <label className="attach-btn">
+                {uploadingTask ? 'Uploading…' : '+ Attach file'}
+                <input
+                  type="file"
+                  hidden
+                  disabled={uploadingTask}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadTaskFile(f); e.target.value = ''; }}
+                />
+              </label>
+              <LibraryPicker target={{ task_id: task.id }} onAttached={(att) => setAttachments((prev) => [...prev, att])} />
+            </>
           ) : attachments.length === 0 ? (
             <span className="muted">No files</span>
           ) : null}
@@ -718,15 +722,21 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
                     </div>
                   ))}
                   {canEditSub(s) && (
-                    <label className="attach-btn">
-                      {uploadingFor === s.id ? 'Uploading…' : '+ Attach file'}
-                      <input
-                        type="file"
-                        hidden
-                        disabled={uploadingFor !== null}
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(s, f); e.target.value = ''; }}
+                    <>
+                      <label className="attach-btn">
+                        {uploadingFor === s.id ? 'Uploading…' : '+ Attach file'}
+                        <input
+                          type="file"
+                          hidden
+                          disabled={uploadingFor !== null}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(s, f); e.target.value = ''; }}
+                        />
+                      </label>
+                      <LibraryPicker
+                        target={{ subtask_id: s.id }}
+                        onAttached={(att) => setSubAttachments((prev) => ({ ...prev, [s.id]: [...(prev[s.id] ?? []), att] }))}
                       />
-                    </label>
+                    </>
                   )}
                 </div>
 

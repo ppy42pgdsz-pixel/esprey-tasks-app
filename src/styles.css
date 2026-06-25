@@ -828,6 +828,26 @@ body {
 .activity-detail { font-size: 13px; color: #292524; }
 .activity-meta { font-size: 11px; color: #a8a29e; margin-top: 1px; }
 
+/* ─── Library picker ─── */
+.lib-picker { position: relative; display: inline-block; }
+.lib-pop {
+  position: absolute; z-index: 20; bottom: calc(100% + 6px); left: 0;
+  width: 300px; max-width: 80vw; max-height: 320px; overflow-y: auto;
+  background: #fff; border: 1px solid #e7e5e4; border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(28,25,23,0.2); padding: 8px;
+}
+.lib-pop-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; color: #57534e; padding: 2px 4px 8px; }
+.lib-upload { font-size: 12px; color: #4f46e5; cursor: pointer; }
+.lib-empty { font-size: 12px; color: #a8a29e; padding: 8px 4px; }
+.lib-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lib-item { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; border: 1px solid #f0eeec; border-radius: 8px; padding: 6px 8px; }
+.lib-item-main { min-width: 0; }
+.lib-name { font-size: 13px; color: #1c1917; word-break: break-word; }
+.lib-summary { font-size: 11px; color: #78716c; margin-top: 2px; }
+.lib-item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.lib-del { background: none; border: none; color: #a8a29e; cursor: pointer; font-size: 13px; }
+.lib-del:hover { color: #b91c1c; }
+
 /* ─── Smart AI assistant (floating) ─── */
 .ai-fab {
   position: fixed; right: 20px; bottom: 20px; z-index: 60;

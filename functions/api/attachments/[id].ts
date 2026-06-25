@@ -5,6 +5,7 @@
  */
 
 import { meFromCtx, canAccessTask, canUpdateSubtask, isTaskOwner } from '../_lib';
+import { releaseLibraryRef } from '../_attachments';
 
 interface Env {
   DB: D1Database;
@@ -46,8 +47,8 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
 export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const { id } = ctx.params as { id: string };
   const row = await ctx.env.DB.prepare(
-    'SELECT task_id, subtask_id, r2_key FROM task_attachments WHERE id = ?',
-  ).bind(id).first<{ task_id: string; subtask_id: string | null; r2_key: string }>();
+    'SELECT task_id, subtask_id, r2_key, library_file_id FROM task_attachments WHERE id = ?',
+  ).bind(id).first<{ task_id: string; subtask_id: string | null; r2_key: string; library_file_id: string | null }>();
   if (!row) return json({ error: 'Not found' }, 404);
 
   const me = await meFromCtx(ctx.env.DB, ctx);
@@ -58,7 +59,12 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
     : await isTaskOwner(ctx.env.DB, row.task_id, me);
   if (!allowed) return json({ error: 'Not allowed to delete this attachment' }, 403);
 
-  try { await ctx.env.ATTACHMENTS.delete(row.r2_key); } catch { /* ignore */ }
+  // Library files own their stored object — only the library deletes it. A direct
+  // upload's object is removed here.
+  if (!row.library_file_id) {
+    try { await ctx.env.ATTACHMENTS.delete(row.r2_key); } catch { /* ignore */ }
+  }
   await ctx.env.DB.prepare('DELETE FROM task_attachments WHERE id = ?').bind(id).run();
+  if (row.library_file_id) await releaseLibraryRef(ctx.env.DB, row.library_file_id);
   return json({ ok: true });
 };

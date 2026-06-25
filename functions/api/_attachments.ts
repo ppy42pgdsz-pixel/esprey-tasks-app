@@ -4,6 +4,17 @@ export function nanoid() {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 21);
 }
 
+/**
+ * Call AFTER removing a task attachment that referenced a library file. If no
+ * task still references that library file, start its 30-day orphan clock.
+ */
+export async function releaseLibraryRef(db: D1Database, libraryFileId: string): Promise<void> {
+  const stillUsed = await db.prepare('SELECT 1 FROM task_attachments WHERE library_file_id = ? LIMIT 1').bind(libraryFileId).first();
+  if (!stillUsed) {
+    await db.prepare('UPDATE library_files SET orphaned_at = ? WHERE id = ? AND orphaned_at IS NULL').bind(Date.now(), libraryFileId).run();
+  }
+}
+
 function toBase64(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
   let bin = '';
