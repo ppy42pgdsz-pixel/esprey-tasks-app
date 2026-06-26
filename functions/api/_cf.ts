@@ -112,3 +112,28 @@ async function sync(env: CfEnv, email: string, op: 'grant' | 'revoke'): Promise<
 
 export const grantAccess = (env: CfEnv, email: string) => sync(env, email, 'grant');
 export const revokeAccess = (env: CfEnv, email: string) => sync(env, email, 'revoke');
+
+/**
+ * Ensure every email in `emails` is present on the allow policy, in a single
+ * read + write (cheaper and rate-limit friendlier than granting one at a time).
+ * Returns how many were newly added. No-ops when the API token isn't set.
+ */
+export async function ensureAccessEmails(env: CfEnv, emails: string[]): Promise<{ added: number; total: number; configured: boolean }> {
+  if (!env.CLOUDFLARE_API_TOKEN) return { added: 0, total: 0, configured: false };
+  const token = env.CLOUDFLARE_API_TOKEN;
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
+  if (!accountId) throw new Error('CLOUDFLARE_ACCOUNT_ID is not set');
+  const domain = env.APP_DOMAIN ?? 'tasks.esprey.net';
+
+  const app = await findApp(token, accountId, domain);
+  const policy = await getAllowPolicy(token, accountId, app.id);
+  const set = new Set(emailsFromPolicy(policy));
+  const before = set.size;
+  for (const raw of emails) {
+    const e = (raw ?? '').trim().toLowerCase();
+    if (e) set.add(e);
+  }
+  const added = set.size - before;
+  if (added > 0) await setPolicyEmails(token, accountId, app.id, policy, Array.from(set).sort());
+  return { added, total: set.size, configured: true };
+}

@@ -168,4 +168,7 @@ export const api = {
 
   sendDigest: (all: boolean) =>
     request<{ sent: number; skipped: string[]; recipients: number }>(`/api/admin/send-digest?confirm=yes${all ? '&all=yes' : ''}`),
+
+  syncAccess: () =>
+    request<{ added: number; total: number; aliases: number; users: number }>(`/api/access-sync`, { method: 'POST' }),
 };

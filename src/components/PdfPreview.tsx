@@ -99,7 +99,7 @@ export default function PdfPreview({ url }: { url: string }) {
         {busy && <div className="pdf-loading">Loading PDF…</div>}
         <canvas ref={canvasRef} className="pdf-canvas" />
       </div>
-      {totalPages > 1 && (
+      {totalPages > 0 && (
         <div className="pdf-preview-pager">
           <button type="button" className="pager-btn" onClick={() => setPageNum((n) => Math.max(1, n - 1))} disabled={pageNum <= 1}>‹ Prev</button>
           <span className="pager-info">Page {pageNum} of {totalPages}</span>

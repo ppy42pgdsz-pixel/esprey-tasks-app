@@ -63,6 +63,26 @@ export default function SettingsPanel(props: Props) {
     }
   };
 
+  // Sign-in addresses (Access allow-list sync)
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const runSync = async () => {
+    setSyncBusy(true);
+    setSyncMsg(null);
+    try {
+      const r = await api.syncAccess();
+      setSyncMsg(
+        r.added > 0
+          ? `Enabled sign-in for ${r.added} new address${r.added === 1 ? '' : 'es'}. ${r.total} addresses can now receive a code.`
+          : `All ${r.total} addresses can already receive a code — nothing to add.`,
+      );
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : 'Sync failed.');
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
   // Companies
   const [newCompany, setNewCompany] = useState('');
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
@@ -269,6 +289,20 @@ export default function SettingsPanel(props: Props) {
               <div><strong>Manage team members</strong> <span className="muted">· add or remove people who can sign in</span></div>
               <button className="btn-primary" onClick={() => setView('team')}>Open</button>
             </div>
+          </section>
+        )}
+
+        {isAdmin && (
+          <section className="settings-card">
+            <div className="settings-card-label">Sign-in addresses</div>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Every team email and alias needs to be on the sign-in allow-list to receive a one-time code. Run this if someone can't get a code at one of their addresses (for example an alias that was added behind the scenes).
+            </p>
+            <div className="settings-card-row">
+              <div><strong>Sync sign-in addresses</strong> <span className="muted">· adds every email &amp; alias to the login list</span></div>
+              <button className="btn-primary" onClick={runSync} disabled={syncBusy}>{syncBusy ? 'Syncing…' : 'Sync now'}</button>
+            </div>
+            {syncMsg && <p className="muted center" style={{ marginTop: 8 }}>{syncMsg}</p>}
           </section>
         )}
 
