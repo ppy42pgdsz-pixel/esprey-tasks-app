@@ -3,6 +3,8 @@
  * Same pattern as the expenses app — only Carl's email can pass.
  */
 
+import { resolvePrimary } from './_lib';
+
 interface Env {
   DB: D1Database;
   ANTHROPIC_API_KEY: string;
@@ -25,14 +27,20 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   try {
     const [, payloadB64] = cfAccessJwt.split('.');
     const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
-    const email: string = payload.email ?? '';
+    const loginEmail: string = (payload.email ?? '').toLowerCase();
 
-    if (!email) {
+    if (!loginEmail) {
       return new Response(JSON.stringify({ error: 'No email in token' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' },
       });
     }
+
+    // Map any alias the person signed in with to their PRIMARY account email, so
+    // every downstream owner/assignee/admin check (which all key off the primary
+    // email) recognises them. Falls back to the login email if the lookup fails.
+    let email = loginEmail;
+    try { email = await resolvePrimary(ctx.env.DB, loginEmail); } catch { /* keep login email */ }
 
     // Store email on ctx.data for downstream handlers
     ctx.data.userEmail = email;
