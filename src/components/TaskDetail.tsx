@@ -345,7 +345,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
       </div>
 
       {/* Company */}
-      <div className="detail-section">
+      <div className="detail-section dt-advanced">
         <div className="section-label">Company</div>
         {!isOwner ? (
           <div className="section-value">{task.company_name || <span className="muted">No company</span>}</div>
@@ -367,7 +367,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
 
       {/* Repeat (owner only) */}
       {isOwner && (
-        <div className="detail-section">
+        <div className="detail-section dt-advanced">
           <div className="section-label">Repeat</div>
           <div className="repeat-controls">
             <select
@@ -412,7 +412,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
 
       {/* Who can see this project (owner only) */}
       {isOwner && (
-        <div className="detail-section">
+        <div className="detail-section dt-advanced">
           <div className="section-label">Who can see this project</div>
           <label className="seeall-toggle">
             <input type="checkbox" checked={membersSeeAll} onChange={toggleSeeAll} />
@@ -439,7 +439,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
       )}
 
       {task.source === 'email' && task.from_email && (
-        <div className="detail-section">
+        <div className="detail-section dt-advanced">
           <div className="section-label">From</div>
           <div className="section-value muted">
             {task.from_name ? `${task.from_name} <${task.from_email}>` : task.from_email}
@@ -514,7 +514,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
       </div>
 
       {task.source === 'email' && task.original_body && (
-        <div className="detail-section">
+        <div className="detail-section dt-advanced">
           <div className="section-label">Original email</div>
           <div className="original-body">{task.original_body}</div>
         </div>

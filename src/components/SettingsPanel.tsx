@@ -155,6 +155,18 @@ export default function SettingsPanel(props: Props) {
           </section>
 
           <section className="settings-card">
+            <div className="settings-card-label">Sign-in addresses</div>
+            <p className="muted card-help">
+              Aliases you add below are enabled for sign-in automatically. Use this only to fix older addresses that can't get a one-time code (for example aliases added before this was wired up).
+            </p>
+            <div className="settings-card-row">
+              <div><strong>Sync sign-in addresses</strong> <span className="muted">· adds every member email &amp; alias to the login allow-list</span></div>
+              <button className="btn-primary sm" onClick={runSync} disabled={syncBusy}>{syncBusy ? 'Syncing…' : 'Sync now'}</button>
+            </div>
+            {syncMsg && <p className="muted center" style={{ marginTop: 8 }}>{syncMsg}</p>}
+          </section>
+
+          <section className="settings-card">
             <div className="settings-card-label">Current members ({users.length})</div>
             {users.map((u) => {
               const isSelf = me?.email === u.email;
@@ -289,20 +301,6 @@ export default function SettingsPanel(props: Props) {
               <div><strong>Manage team members</strong> <span className="muted">· add or remove people who can sign in</span></div>
               <button className="btn-primary" onClick={() => setView('team')}>Open</button>
             </div>
-          </section>
-        )}
-
-        {isAdmin && (
-          <section className="settings-card">
-            <div className="settings-card-label">Sign-in addresses</div>
-            <p className="muted" style={{ marginTop: 0 }}>
-              Every team email and alias needs to be on the sign-in allow-list to receive a one-time code. Run this if someone can't get a code at one of their addresses (for example an alias that was added behind the scenes).
-            </p>
-            <div className="settings-card-row">
-              <div><strong>Sync sign-in addresses</strong> <span className="muted">· adds every email &amp; alias to the login list</span></div>
-              <button className="btn-primary" onClick={runSync} disabled={syncBusy}>{syncBusy ? 'Syncing…' : 'Sync now'}</button>
-            </div>
-            {syncMsg && <p className="muted center" style={{ marginTop: 8 }}>{syncMsg}</p>}
           </section>
         )}
 

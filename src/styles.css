@@ -333,6 +333,26 @@ body {
 @media (max-width: 760px) {
   .detail-cols { flex-direction: column; }
   .detail-left { width: auto; border-right: none; border-bottom: 1px solid #ece9e6; }
+  /* Phone: hide the rarely-used editor sections (company, repeat, visibility,
+     email source, original email, activity) to keep the essentials in reach.
+     These remain available on desktop, the primary view. */
+  .dt-advanced, .activity-section { display: none; }
+}
+
+/* ─── Phone: slim the project/task list to the essentials ─── */
+@media (max-width: 760px) {
+  /* Show only Status, Title and Due. Hide the select boxes, Company, Assigned,
+     Added and the redundant Open button (the whole row is tappable). */
+  .task-table .col-check,
+  .task-table thead th:nth-child(4), .task-table tbody td:nth-child(4),
+  .task-table thead th:nth-child(5), .task-table tbody td:nth-child(5),
+  .task-table thead th:nth-child(7), .task-table tbody td:nth-child(7),
+  .task-table .col-actions { display: none; }
+  .task-table { font-size: 14px; }
+  .task-table tbody td, .task-table thead th { padding-left: 8px; padding-right: 8px; }
+  .cell-title { white-space: normal; }
+  .project-prefix { display: none; }
+  .cell-title-row { flex-wrap: wrap; gap: 4px; }
 }
 .detail-header {
   display: flex;
