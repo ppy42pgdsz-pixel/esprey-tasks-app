@@ -30,6 +30,8 @@ body {
   margin-bottom: 12px;
 }
 .logo { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; color: #1c1917; }
+/* "-Desktop" suffix shows only on desktop widths; mobile keeps plain "Tasks". */
+@media (max-width: 720px) { .logo-desktop-suffix { display: none; } }
 .header-actions { display: flex; align-items: center; gap: 8px; }
 .header-side { flex: 1; display: flex; align-items: center; gap: 6px; }
 .header-right { justify-content: flex-end; }

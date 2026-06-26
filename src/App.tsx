@@ -414,7 +414,7 @@ export default function App() {
             <span className="app-icon" aria-hidden="true">
               <img src="/apple-touch-icon.png" width={28} height={28} alt="" style={{ display: 'block', borderRadius: 7 }} />
             </span>
-            <h1 className="logo">Tasks</h1>
+            <h1 className="logo">Tasks<span className="logo-desktop-suffix">-Desktop</span></h1>
           </div>
 
           <div className="header-side header-right">
