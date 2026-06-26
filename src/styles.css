@@ -331,8 +331,14 @@ body {
 .detail-left .detail-title { font-size: 18px; margin: 0 0 14px; }
 .detail-right .section-label:first-child { font-size: 16px; color: #1c1917; font-weight: 600; margin-bottom: 12px; }
 @media (max-width: 760px) {
-  .detail-cols { flex-direction: column; }
-  .detail-left { width: auto; border-right: none; border-bottom: 1px solid #ece9e6; }
+  /* Scroll the whole sheet as one column. The desktop layout gives each pane
+     its own scroll inside a fixed height, which on a phone clipped the lower
+     fields (e.g. Notes) into an unreachable overflow region and swallowed taps,
+     so the field never focused. Letting the panes size to content and scrolling
+     the column makes every field reachable and tappable. */
+  .detail-cols { flex-direction: column; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .detail-left, .detail-right { width: auto; flex: 0 0 auto; height: auto; overflow: visible; }
+  .detail-left { border-right: none; border-bottom: 1px solid #ece9e6; }
   /* Phone: hide the rarely-used editor sections (company, repeat, visibility,
      email source, original email, activity) to keep the essentials in reach.
      These remain available on desktop, the primary view. */
