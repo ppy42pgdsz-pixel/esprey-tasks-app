@@ -370,6 +370,11 @@ body {
     background: #fff; border: 1px solid #d6d3d1; border-radius: 9px;
     font-size: 14px; font-weight: 600; color: #44403c; cursor: pointer;
   }
+  /* Orange highlight when any real filter is on (search, quick filter, person,
+     company) — the Work/Personal/All view does NOT count. */
+  .mobile-filters-toggle.filtered {
+    background: #fff7ed; border-color: #f97316; color: #c2410c;
+  }
   /* Collapse the filter controls behind the button; show only when opened. */
   .filter-stack { display: none; }
   .filter-stack.open { display: block; margin-bottom: 10px; }

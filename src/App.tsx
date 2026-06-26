@@ -462,7 +462,7 @@ export default function App() {
           <>
             <button
               type="button"
-              className="mobile-filters-toggle"
+              className={`mobile-filters-toggle${filtersActive ? ' filtered' : ''}`}
               onClick={() => setMobileFiltersOpen((o) => !o)}
             >
               {mobileFiltersOpen ? '× Close filters' : `Filters${filtersActive ? ' •' : ''}`}
