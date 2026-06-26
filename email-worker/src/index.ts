@@ -490,6 +490,15 @@ export default {
     const rawEmail = await new Response(message.raw).arrayBuffer();
     const parsed = await PostalMime.parse(rawEmail);
 
+    // Cloudflare rejects inbound mail over 25 MiB at the edge. Within that, the
+    // Worker still has a memory/CPU budget (much larger on the Paid plan). Above
+    // this soft threshold we skip sending attachments to the model — base64 +
+    // vision is the expensive part — and plan from the email text alone. The
+    // files themselves are still stored either way.
+    const rawSize = (message as { rawSize?: number }).rawSize ?? rawEmail.byteLength;
+    const VISION_EMAIL_CAP = 18 * 1024 * 1024; // 18 MiB
+    const allowVision = rawSize <= VISION_EMAIL_CAP;
+
     const subject = parsed.subject ?? message.headers.get('subject') ?? '(no subject)';
     let fromEmail = parsed.from?.address ?? message.from;
     let fromName = parsed.from?.name ?? fromEmail;
@@ -536,9 +545,9 @@ export default {
         } catch (e) {
           console.error('failed to parse .eml attachment:', e);
         }
-      } else if ((mime === 'application/pdf' || AI_IMAGE_TYPES.includes(mime)) && bytes.length <= 4.5 * 1024 * 1024) {
-        // Send to the model for planning, but only if small enough to avoid an
-        // over-large request. Larger files are still stored, just not "read".
+      } else if (allowVision && (mime === 'application/pdf' || AI_IMAGE_TYPES.includes(mime)) && bytes.length <= 4.5 * 1024 * 1024) {
+        // Send to the model for planning, but only for small files in a not-too-
+        // large email. Larger files are still stored, just not "read".
         aiAttachments.push({ mime, base64: uint8ToBase64(bytes) });
       }
       // Other types (e.g. HEIC) and large files are stored but not sent to the model.
@@ -663,7 +672,7 @@ export default {
     await sendConfirmation(env, ownerEmail, subject, summaryLines);
 
     console.log(
-      `Email processed for ${ownerEmail}: files=${toStore.length} project=${projectId ?? 'none'} tasks=${plan.tasks.length} lib=${toLibraryCount} proj=${toProjectCount} pdf=${plan.file_email_as_pdf}`,
+      `Email processed for ${ownerEmail}: size=${rawSize}B vision=${allowVision} files=${toStore.length} project=${projectId ?? 'none'} tasks=${plan.tasks.length} lib=${toLibraryCount} proj=${toProjectCount} pdf=${plan.file_email_as_pdf}`,
     );
   },
 } satisfies ExportedHandler<Env>;
