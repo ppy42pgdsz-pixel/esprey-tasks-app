@@ -348,6 +348,8 @@ export default function App() {
   const visibleCompletedSubs = completedSubtasks.filter((cs) => matchesView(cs.company_name));
   const filtersActive = !!(q || quickFilter || filterPerson || filterCompany);
   const clearAllFilters = () => { setSearch(''); setQuickFilter(''); setFilterPerson(''); setFilterCompany(''); };
+  // On phones the whole filter area collapses behind a single "Filters" button.
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const allSelected = visibleTasks.length > 0 && visibleTasks.every((t) => selectedIds.has(t.id));
   const toggleSelectAll = () => {
@@ -458,6 +460,14 @@ export default function App() {
       <main className="main">
         {!loading && !error && (
           <>
+            <button
+              type="button"
+              className="mobile-filters-toggle"
+              onClick={() => setMobileFiltersOpen((o) => !o)}
+            >
+              {mobileFiltersOpen ? '× Close filters' : `Filters${filtersActive ? ' •' : ''}`}
+            </button>
+            <div className={`filter-stack${mobileFiltersOpen ? ' open' : ''}`}>
             <div className="list-controls">
               <div className="seg-control" role="group" aria-label="Work or personal">
                 {(['work', 'personal', 'all'] as TaskView[]).map((v) => (
@@ -536,6 +546,7 @@ export default function App() {
                 </button>
               )}
             </div>
+            </div>{/* end filter-stack */}
 
             {filterStatus === 'completed' && (
               <p className="retention-note muted">

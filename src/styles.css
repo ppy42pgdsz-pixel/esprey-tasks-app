@@ -354,6 +354,24 @@ body {
   .project-prefix { display: none; }
   .cell-title-row { flex-wrap: wrap; gap: 4px; }
 }
+
+/* Mobile-only "Filters" button that collapses the whole filter area. */
+.mobile-filters-toggle { display: none; }
+@media (max-width: 760px) {
+  .mobile-filters-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin: 0 0 10px; padding: 9px 16px;
+    background: #fff; border: 1px solid #d6d3d1; border-radius: 9px;
+    font-size: 14px; font-weight: 600; color: #44403c; cursor: pointer;
+  }
+  /* Collapse the filter controls behind the button; show only when opened. */
+  .filter-stack { display: none; }
+  .filter-stack.open { display: block; margin-bottom: 10px; }
+  .filter-stack.open .list-controls,
+  .filter-stack.open .quick-filters { flex-wrap: wrap; }
+  /* Viewing a single task: drop the project-details pane so the task fills the screen. */
+  .detail-cols.focus-task .detail-left { display: none; }
+}
 .detail-header {
   display: flex;
   align-items: flex-start;

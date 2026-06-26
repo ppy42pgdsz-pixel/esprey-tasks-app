@@ -322,7 +322,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
   return (
     <aside className="task-detail">
       <button className="close-btn sheet-close" onClick={onClose}>×</button>
-      <div className="detail-cols">
+      <div className={`detail-cols${focusSubtaskId ? ' focus-task' : ''}`}>
       {/* ─── Left: project-level details ─── */}
       <div className="detail-left">
       <div className="detail-project-label">Project</div>
