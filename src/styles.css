@@ -44,6 +44,30 @@ body {
 }
 .icon-btn:hover { background: #f1efed; color: #1c1917; }
 
+/* ─── Phone: reclaim space + bigger touch targets ─── */
+@media (max-width: 760px) {
+  /* Slim the sticky header so more of the screen is the task list. */
+  .header { padding: 8px 12px 0; }
+  .header-content { margin-bottom: 8px; }
+  .header-left { gap: 2px; }
+  .icon-btn { width: 34px; height: 34px; }
+  .header-title { gap: 6px; }
+  .logo { font-size: 17px; }
+  .header-right .btn-primary { padding: 8px 12px; font-size: 13px; }
+
+  /* Hide the floating Smart AI button/panel while a full-screen overlay (task
+     editor, settings, reports, library) is open, so it can't overlap or swallow
+     taps. Uses :has(); unsupported browsers just keep the current behaviour. */
+  body:has(.detail-overlay) .ai-fab,
+  body:has(.detail-overlay) .ai-panel,
+  body:has(.settings-page-overlay) .ai-fab,
+  body:has(.settings-page-overlay) .ai-panel { display: none; }
+
+  /* Comfortable finger targets. */
+  .status-pill { padding: 6px 12px; font-size: 13px; }
+  .expand-chevron { padding: 6px 8px; font-size: 15px; }
+}
+
 /* ─── Filter Nav ─── */
 .filter-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .filter-nav { display: flex; gap: 4px; }
