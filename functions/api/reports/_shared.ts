@@ -58,6 +58,62 @@ export async function reportScope(db: D1Database, companyId: string | null): Pro
   return c?.name ?? 'Selected company';
 }
 
+// ─── Urgency bucketing — "what needs you now" ───
+const DAY = 24 * 60 * 60 * 1000;
+const utcMidnight = (ms: number) => { const d = new Date(ms); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+
+export interface FlatTask {
+  project: string;
+  company: string | null;
+  text: string;
+  due: number | null;
+  assignees: string | null;
+  awaitingSignoff: boolean;
+}
+export interface ReportBuckets {
+  awaiting: FlatTask[];   // assignee marked done, needs the owner to sign off
+  overdue: FlatTask[];    // past its due date, not yet done
+  dueSoon: FlatTask[];    // due within the next 7 days
+  totalTasks: number;
+  totalProjects: number;
+}
+
+/** Flatten projects→tasks and split into priority buckets (mutually exclusive). */
+export function bucketReport(projects: ReportProject[], now: number): ReportBuckets {
+  const today = utcMidnight(now);
+  const weekEnd = today + 7 * DAY;
+  const awaiting: FlatTask[] = [];
+  const overdue: FlatTask[] = [];
+  const dueSoon: FlatTask[] = [];
+  let totalTasks = 0;
+
+  for (const p of projects) {
+    for (const t of p.tasks) {
+      totalTasks++;
+      const ft: FlatTask = {
+        project: p.title, company: p.company_name, text: t.text, due: t.due_date,
+        assignees: t.assignee_names, awaitingSignoff: t.status === 'done' && !t.accepted_at,
+      };
+      if (ft.awaitingSignoff) awaiting.push(ft);
+      else if (t.due_date != null && t.due_date < today) overdue.push(ft);
+      else if (t.due_date != null && t.due_date <= weekEnd) dueSoon.push(ft);
+    }
+  }
+  const byDue = (a: FlatTask, b: FlatTask) => (a.due ?? Infinity) - (b.due ?? Infinity);
+  overdue.sort(byDue); dueSoon.sort(byDue);
+  return { awaiting, overdue, dueSoon, totalTasks, totalProjects: projects.length };
+}
+
+/** Base64-encode bytes in chunks (btoa chokes on very large strings). */
+export function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk) as unknown as number[]);
+  }
+  return btoa(binary);
+}
+
 /** Greedy word-wrap (with hard-break for over-long words) for a max pixel width. */
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
   const lines: string[] = [];
@@ -104,6 +160,8 @@ export async function buildReportPdf(projects: ReportProject[], scopeLabel: stri
   const grey = rgb(0.45, 0.43, 0.41);
   const faint = rgb(0.66, 0.64, 0.62);
   const rule = rgb(0.86, 0.85, 0.83);
+  const red = rgb(0.70, 0.12, 0.10);
+  const amber = rgb(0.62, 0.40, 0.02);
   const leftX = M;
   const rightX = PW - M;
 
@@ -119,16 +177,49 @@ export async function buildReportPdf(projects: ReportProject[], scopeLabel: stri
   const need = (h: number) => { if (y - h < M) newPage(); };
 
   // Header.
+  const prio = bucketReport(projects, generatedAt);
   page.drawText('Outstanding tasks', { x: leftX, y: y - 18, size: 18, font: bold, color: ink });
   y -= 22;
-  const totalTasks = projects.reduce((n, p) => n + p.tasks.length, 0);
-  page.drawText(`${scopeLabel}    ·    ${fmtDate(generatedAt)}    ·    ${projects.length} project${projects.length === 1 ? '' : 's'},  ${totalTasks} open task${totalTasks === 1 ? '' : 's'}`,
+  page.drawText(`${scopeLabel}    ·    ${fmtDate(generatedAt)}    ·    ${projects.length} project${projects.length === 1 ? '' : 's'},  ${prio.totalTasks} open    ·    ${prio.overdue.length} overdue    ·    ${prio.dueSoon.length} due this week`,
     { x: leftX, y: y - 9, size: 9, font, color: grey });
   y -= 22;
 
   if (projects.length === 0) {
     page.drawText('Nothing outstanding — all clear.', { x: leftX, y: y - 11, size: 11, font, color: grey });
     return pdf.save();
+  }
+
+  // ─── "Needs you now" — priority items pulled to the top ───
+  const metaXEnd = rightX - META_W - 12;
+  const prioLineW = metaXEnd - taskX;
+  const renderPrio = (label: string, items: typeof prio.overdue, labelColor: typeof red) => {
+    if (!items.length) return;
+    need(20);
+    page.drawText(`${label} (${items.length})`, { x: taskX, y: y - 9, size: 9, font: bold, color: labelColor });
+    y -= 14;
+    for (const ft of items) {
+      need(16);
+      page.drawRectangle({ x: leftX, y: y - BOX, width: BOX, height: BOX, borderColor: grey, borderWidth: 1, color: rgb(1, 1, 1) });
+      const meta = [ft.assignees || 'Unassigned', ft.due ? `due ${fmtDate(ft.due)}` : null].filter(Boolean).join('   ·   ');
+      const metaText = truncateToWidth(meta, font, 9, META_W);
+      page.drawText(metaText, { x: rightX - font.widthOfTextAtSize(metaText, 9), y: y - 10, size: 9, font, color: grey });
+      const main = truncateToWidth(`${ft.text}   —   ${ft.project}`, font, 10.5, prioLineW);
+      page.drawText(main, { x: taskX, y: y - 10.5, size: 10.5, font, color: ink });
+      y -= 16;
+    }
+    y -= 6;
+  };
+  if (prio.overdue.length || prio.dueSoon.length || prio.awaiting.length) {
+    page.drawText('NEEDS YOU NOW', { x: leftX, y: y - 10, size: 10, font: bold, color: ink });
+    y -= 14;
+    page.drawLine({ start: { x: leftX, y }, end: { x: rightX, y }, thickness: 1, color: rule });
+    y -= 16;
+    renderPrio('Overdue', prio.overdue, red);
+    renderPrio('Due this week', prio.dueSoon, amber);
+    renderPrio('Awaiting your sign-off', prio.awaiting, grey);
+    y -= 4;
+    page.drawText('ALL OUTSTANDING — print & tick', { x: leftX, y: y - 10, size: 10, font: bold, color: grey });
+    y -= 16;
   }
 
   // Group projects by company, preserving order.
