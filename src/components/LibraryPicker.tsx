@@ -54,13 +54,18 @@ export default function LibraryPicker({ target, onAttached }: Props) {
     <div className="lib-picker">
       <button type="button" className="attach-btn" onClick={toggle}>📁 From library</button>
       {open && (
+        <>
+        <div className="picker-backdrop" onClick={() => setOpen(false)} />
         <div className="lib-pop">
           <div className="lib-pop-head">
             <span>Your library</span>
-            <label className="lib-upload">
-              {uploading ? 'Uploading…' : '+ Add file'}
-              <input type="file" hidden disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadToLibrary(f); e.target.value = ''; }} />
-            </label>
+            <span className="lib-pop-head-right">
+              <label className="lib-upload">
+                {uploading ? 'Uploading…' : '+ Add file'}
+                <input type="file" hidden disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadToLibrary(f); e.target.value = ''; }} />
+              </label>
+              <button type="button" className="picker-close" onClick={() => setOpen(false)} aria-label="Close">×</button>
+            </span>
           </div>
           {!loaded ? (
             <div className="lib-empty">Loading…</div>
@@ -83,6 +88,7 @@ export default function LibraryPicker({ target, onAttached }: Props) {
             </ul>
           )}
         </div>
+        </>
       )}
     </div>
   );

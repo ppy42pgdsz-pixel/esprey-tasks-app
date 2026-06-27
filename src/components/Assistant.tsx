@@ -123,7 +123,13 @@ export default function Assistant({ onApplied }: Props) {
           <div className="ai-doc-chip">📎 {doc.name}<button onClick={() => setDoc(null)} aria-label="Remove document">×</button></div>
         )}
         {attachMenu && (
+          <>
+          <div className="picker-backdrop" onClick={() => setAttachMenu(false)} />
           <div className="ai-attach-menu">
+            <div className="ai-attach-menu-head">
+              <span>Attach a document</span>
+              <button type="button" className="picker-close" onClick={() => setAttachMenu(false)} aria-label="Close">×</button>
+            </div>
             <label className="ai-attach-opt">
               {uploadingDoc ? 'Uploading…' : '⬆ Upload a file'}
               <input type="file" hidden disabled={uploadingDoc} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f); e.target.value = ''; }} />
@@ -139,6 +145,7 @@ export default function Assistant({ onApplied }: Props) {
               ))
             )}
           </div>
+          </>
         )}
         <div className="ai-input">
           <button className="ai-attach-btn" title="Attach a document" onClick={openAttachMenu}>📎</button>
