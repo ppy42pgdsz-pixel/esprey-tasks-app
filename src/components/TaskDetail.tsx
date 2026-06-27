@@ -29,8 +29,10 @@ function splitIntoItems(raw: string): string[] {
     .filter((s) => s.length > 0);
 }
 
-const SUB_NEXT: Record<TaskStatus, TaskStatus> = { todo: 'in_progress', in_progress: 'done', done: 'todo' };
-const SUB_LABEL: Record<TaskStatus, string> = { todo: 'To Do', in_progress: 'In Progress', done: 'Done' };
+// Tasks are binary: To Do ↔ Done (no "In Progress"). Legacy in_progress rows
+// are treated/shown as To Do and advance to Done on the next tap.
+const SUB_NEXT: Record<TaskStatus, TaskStatus> = { todo: 'done', in_progress: 'done', done: 'todo' };
+const SUB_LABEL: Record<TaskStatus, string> = { todo: 'To Do', in_progress: 'To Do', done: 'Done' };
 
 interface Props {
   task: Task;
@@ -575,7 +577,7 @@ export default function TaskDetail({ task, companies, me, users, onClose, onUpda
               <li key={s.id} className={`subtask-item ${s.status === 'done' ? 'done' : ''}`}>
                 <div className="subtask-titlerow">
                   <span
-                    className={`status-pill ${s.status}${canEditSub(s) ? '' : ' static'}`}
+                    className={`status-pill ${s.status === 'done' ? 'done' : 'todo'}${canEditSub(s) ? '' : ' static'}`}
                     title={canEditSub(s) ? `Mark as ${SUB_LABEL[SUB_NEXT[s.status]]}` : SUB_LABEL[s.status]}
                     onClick={canEditSub(s) ? () => cycleSubtaskStatus(s) : undefined}
                   >

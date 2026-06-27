@@ -2,12 +2,14 @@ import { Fragment, useState, useEffect } from 'react';
 import type { Task, TaskStatus, Subtask, User } from '../types';
 import { api } from '../api';
 
+// Tasks are binary: To Do ↔ Done (no "In Progress"). Legacy in_progress rows
+// are treated/shown as To Do and advance to Done on the next tap.
 const STATUS_NEXT: Record<TaskStatus, TaskStatus> = {
-  todo: 'in_progress',
+  todo: 'done',
   in_progress: 'done',
   done: 'todo',
 };
-const STATUS_LABEL: Record<TaskStatus, string> = { todo: 'To Do', in_progress: 'In Progress', done: 'Done' };
+const STATUS_LABEL: Record<TaskStatus, string> = { todo: 'To Do', in_progress: 'To Do', done: 'Done' };
 const STATUS_RANK: Record<TaskStatus, number> = { todo: 0, in_progress: 1, done: 2 };
 
 const COL_COUNT = 8; // check, status, title, company, assigned, due, added, actions
@@ -368,7 +370,7 @@ export default function TaskList({
                     </td>
                     <td>
                       <span
-                        className={`status-pill ${s.status}`}
+                        className={`status-pill ${s.status === 'done' ? 'done' : 'todo'}`}
                         title={`Mark as ${STATUS_LABEL[STATUS_NEXT[s.status]]}`}
                         onClick={(e) => { e.stopPropagation(); cycleSub(task.id, s); }}
                       >
