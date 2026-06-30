@@ -63,9 +63,11 @@ body {
   body:has(.settings-page-overlay) .ai-fab,
   body:has(.settings-page-overlay) .ai-panel { display: none; }
 
-  /* Comfortable finger targets. */
+  /* Comfortable finger targets (~44px, Apple HIG). */
   .status-pill { padding: 6px 12px; font-size: 13px; }
-  .expand-chevron { padding: 6px 8px; font-size: 15px; }
+  .expand-chevron { font-size: 20px; padding: 10px 16px 10px 4px; }
+  .close-btn, .sheet-close { font-size: 30px; padding: 6px 12px; }
+  .subtask-del { font-size: 24px; padding: 6px 12px; }
 }
 
 /* ─── Filter Nav ─── */
