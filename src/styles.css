@@ -62,12 +62,6 @@ body {
   body:has(.detail-overlay) .ai-panel,
   body:has(.settings-page-overlay) .ai-fab,
   body:has(.settings-page-overlay) .ai-panel { display: none; }
-
-  /* Comfortable finger targets (~44px, Apple HIG). */
-  .status-pill { padding: 6px 12px; font-size: 13px; }
-  .expand-chevron { font-size: 20px; padding: 10px 16px 10px 4px; }
-  .close-btn, .sheet-close { font-size: 30px; padding: 6px 12px; }
-  .subtask-del { font-size: 24px; padding: 6px 12px; }
 }
 
 /* ─── Filter Nav ─── */
@@ -1137,4 +1131,14 @@ body {
 .pager-btn:not(:disabled):active { background: rgba(255,255,255,0.2); }
 .pager-info {
   font-size: 13px; color: #d4d4d4; flex: 1; text-align: center;
+}
+
+/* ─── Phone touch targets (kept at end of file so they override the base
+   component rules above, which are defined later in source and would otherwise
+   win at equal specificity). Grows BOTH the glyph and the tap area. ─── */
+@media (max-width: 760px) {
+  .status-pill { padding: 7px 13px; font-size: 13px; }
+  .expand-chevron { font-size: 22px; padding: 12px 18px 12px 4px; }
+  .close-btn, .sheet-close { font-size: 30px; padding: 8px 14px; }
+  .subtask-del { font-size: 24px; padding: 8px 12px; }
 }
